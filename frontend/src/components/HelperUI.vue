@@ -1,9 +1,21 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useTheme } from '../composables/useTheme'
+import { NModal, NInput, NButton, NText } from 'naive-ui'
+import { useMapStore } from '../store/map'
 
 // 获取全局主题状态与切换函数
 const { isDark, toggleTheme } = useTheme()
+
+const mapStore = useMapStore()
+const showSettings = ref(false)
+const inputKey = ref(mapStore.tiandituKey)
+
+const saveKey = () => {
+  mapStore.setTiandituKey(inputKey.value)
+  showSettings.value = false
+  window.location.reload()
+}
 
 // 全屏状态控制
 const isFullscreen = ref(false)
@@ -266,6 +278,15 @@ onUnmounted(() => {
         </svg>
         <span class="btn-text">{{ isDark ? '日间模式' : '夜间模式' }}</span>
       </button>
+
+      <!-- 地图配置 -->
+      <button class="action-btn" @click="showSettings = true" title="地图底图服务设置">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        <span class="btn-text">地图设置</span>
+      </button>
     </div>
   </header>
 
@@ -331,6 +352,42 @@ onUnmounted(() => {
       </div>
     </div>
   </div>
+
+  <!-- 地图设置模态窗 -->
+  <n-modal
+    v-model:show="showSettings"
+    preset="card"
+    style="width: 480px; max-width: 90vw;"
+    title="🔧 地图底图服务配置"
+    :bordered="false"
+    size="medium"
+  >
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      <n-text depth="3">
+        当前默认在未填写 API Key 时使用 <strong>OpenStreetMap (OSM)</strong> 作为日间模式底图。
+        如果您有天地图个人开发者 Key，请在下方填写以启用高速国内天地图底图服务。
+      </n-text>
+      
+      <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px;">
+        <strong style="font-size: 13px; color: var(--text-primary)">天地图 API Key (tk)</strong>
+        <n-input
+          v-model:value="inputKey"
+          type="text"
+          placeholder="请输入天地图 tk 字符串..."
+          clearable
+        />
+      </div>
+
+      <div style="font-size: 11.5px; color: var(--text-secondary); line-height: 1.5; background: rgba(120,120,120,0.06); padding: 8px 10px; border-radius: 6px;">
+        💡 提示：天地图 Key 可在国家地理信息公共服务平台（天地图）官网控制台免费申请。保存后页面将自动刷新以重新加载底图。
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
+        <n-button @click="showSettings = false">取消</n-button>
+        <n-button type="primary" @click="saveKey">保存并重载</n-button>
+      </div>
+    </div>
+  </n-modal>
 </template>
 
 <style scoped>
