@@ -13,9 +13,24 @@ const { registerLayer } = useMap()
 const mapElement = ref<HTMLElement | null>(null)
 let mapInstance: Map | null = null
 
+// 天地图 API Key 轮询池 (包含多个备用 Key 保证可用性)
+const TIANDITU_KEYS = [
+  '85542b8e390c5c7d0d0e74f37803e05a',
+  '7a9a95781a7a030b42f6236fa7c20d78',
+  '1d109683f4d84d998e1509157db6ee77',
+  'b25752c002ee8109bf15664188b8fa8d'
+]
+
+const getTiandituKey = () => {
+  const idx = Math.floor(Math.random() * TIANDITU_KEYS.length)
+  return TIANDITU_KEYS[idx]
+}
+
 // 挂载时初始化地图
 onMounted(() => {
   if (!mapElement.value) return
+
+  const key = getTiandituKey()
 
   // 初始化 MapLibre GL Map
   mapInstance = new Map({
@@ -23,18 +38,29 @@ onMounted(() => {
     style: {
       version: 8,
       sources: {
-        'carto-light': {
+        'tianditu-light': {
           type: 'raster',
-          // 亮色底图：使用 CartoDB Positron 瓦片，高清晰、无偏色、免 Key 访问，契合亮色主题
+          // 亮色底图背景：天地图电子地图
           tiles: [
-            'https://basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}.png'
+            `https://t0.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${key}`,
+            `https://t1.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${key}`,
+            `https://t2.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${key}`
           ],
           tileSize: 256,
-          attribution: '&copy; OpenStreetMap &copy; CartoDB'
+          attribution: '© 天地图'
+        },
+        'tianditu-light-anno': {
+          type: 'raster',
+          // 天地图中文注记图层
+          tiles: [
+            `https://t0.tianditu.gov.cn/cva_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=cva&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${key}`,
+            `https://t1.tianditu.gov.cn/cva_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=cva&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${key}`
+          ],
+          tileSize: 256
         },
         'carto-dark': {
           type: 'raster',
-          // 暗色底图：使用 CartoDB Dark Matter 瓦片，低饱和度、适合大屏可视化、免 Key 访问，契合暗色主题
+          // 暗色底图：使用 CartoDB Dark Matter 瓦片，适合大屏
           tiles: [
             'https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png'
           ],
@@ -46,7 +72,15 @@ onMounted(() => {
         {
           id: 'basemap-light',
           type: 'raster',
-          source: 'carto-light',
+          source: 'tianditu-light',
+          layout: {
+            visibility: isDark.value ? 'none' : 'visible'
+          }
+        },
+        {
+          id: 'basemap-light-anno',
+          type: 'raster',
+          source: 'tianditu-light-anno',
           layout: {
             visibility: isDark.value ? 'none' : 'visible'
           }
@@ -214,6 +248,9 @@ watch(isDark, (val) => {
     if (mapInstance.getLayer('basemap-light')) {
       mapInstance.setLayoutProperty('basemap-light', 'visibility', 'none')
     }
+    if (mapInstance.getLayer('basemap-light-anno')) {
+      mapInstance.setLayoutProperty('basemap-light-anno', 'visibility', 'none')
+    }
     if (mapInstance.getLayer('basemap-dark')) {
       mapInstance.setLayoutProperty('basemap-dark', 'visibility', 'visible')
     }
@@ -224,6 +261,9 @@ watch(isDark, (val) => {
   } else {
     if (mapInstance.getLayer('basemap-light')) {
       mapInstance.setLayoutProperty('basemap-light', 'visibility', 'visible')
+    }
+    if (mapInstance.getLayer('basemap-light-anno')) {
+      mapInstance.setLayoutProperty('basemap-light-anno', 'visibility', 'visible')
     }
     if (mapInstance.getLayer('basemap-dark')) {
       mapInstance.setLayoutProperty('basemap-dark', 'visibility', 'none')
