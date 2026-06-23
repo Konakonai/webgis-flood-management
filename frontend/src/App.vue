@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import {
   NConfigProvider,
+  NNotificationProvider,
   NMessageProvider,
   NDialogProvider,
   NButton,
@@ -180,8 +181,9 @@ const renderUserReportLayer = () => {
 
 <template>
   <n-config-provider :theme="naiveTheme">
-    <n-message-provider>
-      <n-dialog-provider>
+    <n-notification-provider>
+      <n-message-provider>
+        <n-dialog-provider>
         <!-- 主布局容器，根据全局主题动态绑定类名 -->
         <div class="app-layout" :class="{ 'dark-theme': isDark, 'light-theme': !isDark }">
           
@@ -251,8 +253,9 @@ const renderUserReportLayer = () => {
 
 
         </div>
-      </n-dialog-provider>
-    </n-message-provider>
+        </n-dialog-provider>
+      </n-message-provider>
+    </n-notification-provider>
   </n-config-provider>
 </template>
 
