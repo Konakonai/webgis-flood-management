@@ -886,9 +886,9 @@ onUnmounted(() => {
   pointer-events: auto; /* 面板本身恢复点击交互 */
   position: absolute;
   top: 20px;
-  left: 20px;
+  right: 20px;
   width: 360px;
-  height: calc(100vh - 40px);
+  height: calc(100vh - 110px);
   max-height: 900px;
   display: flex;
   flex-direction: column;

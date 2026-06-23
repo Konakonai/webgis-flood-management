@@ -70,7 +70,7 @@ onMounted(() => {
   })
 
   // 添加导航控件（缩放、指南针）
-  mapInstance.addControl(new NavigationControl({ showCompass: false }), 'top-right')
+  mapInstance.addControl(new NavigationControl({ showCompass: false }), 'top-left')
 
   mapInstance.on('load', () => {
     if (!mapInstance) return
