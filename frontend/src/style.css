@@ -1,0 +1,125 @@
+/* ==========================================================================
+   WebGIS Global Reset & Theme Styling
+   ========================================================================== */
+
+:root {
+  /* 浅色主题 CSS 变量 */
+  --bg-color: #f7f9fc;
+  --bg-card: rgba(255, 255, 255, 0.9);
+  --border-color: #e2e8f0;
+  --text-primary: #1f2225;
+  --text-secondary: #718096;
+  --primary-color: #1890ff;
+  --accent-color: #7a2be2;
+  --accent-hover: #9b59b6;
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.dark-theme {
+  /* 深色主题 CSS 变量 */
+  --bg-color: #101014;
+  --bg-card: rgba(24, 24, 28, 0.9);
+  --border-color: #333339;
+  --text-primary: #f3f4f6;
+  --text-secondary: #a0aec0;
+  --primary-color: #18a058;
+  --accent-color: #8a2be2;
+  --accent-hover: #a29bfe;
+  --shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+#app {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* ==========================================================================
+   MapLibre / Mapbox Override Styles
+   ========================================================================== */
+
+/* 缩放控件与罗盘微调 */
+.maplibregl-ctrl-group {
+  border-radius: 6px !important;
+  box-shadow: var(--shadow) !important;
+  border: 1px solid var(--border-color) !important;
+  background: var(--bg-card) !important;
+  overflow: hidden;
+}
+
+.maplibregl-ctrl-group button {
+  background-color: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--border-color) !important;
+}
+
+.maplibregl-ctrl-group button:last-child {
+  border-bottom: 0 !important;
+}
+
+.maplibregl-ctrl-group button span {
+  filter: grayscale(1);
+}
+
+.dark-theme .maplibregl-ctrl-group button span {
+  filter: invert(1) brightness(1.5);
+}
+
+.maplibregl-ctrl-group button:hover {
+  background-color: rgba(120, 120, 120, 0.1) !important;
+}
+
+/* 弹出框通用排版微调 */
+.maplibregl-popup-content {
+  font-family: inherit;
+  line-height: 1.4;
+}
+
+.maplibregl-popup-close-button {
+  color: var(--text-secondary) !important;
+  outline: none !important;
+  padding: 4px 8px !important;
+  font-size: 16px !important;
+  transition: color 0.2s;
+}
+
+.maplibregl-popup-close-button:hover {
+  color: #ff4d4f !important;
+  background-color: transparent !important;
+}
+
+/* ==========================================================================
+   Custom Scrollbar
+   ========================================================================== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(120, 120, 120, 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(120, 120, 120, 0.5);
+}
