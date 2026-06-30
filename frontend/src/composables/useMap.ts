@@ -47,14 +47,19 @@ export function useMap() {
       const layerIds: string[] = []
       opts.layers.forEach(styleLayer => {
         if (!mapInst.getLayer(styleLayer.id)) {
-          mapInst.addLayer({
+          const layerConfig = {
             id: styleLayer.id,
             source: id,
             type: styleLayer.type,
             paint: styleLayer.paint || {},
-            layout: styleLayer.layout || {},
-            filter: styleLayer.filter
-          } as any, styleLayer.beforeId)
+            layout: styleLayer.layout || {}
+          } as any
+
+          if (styleLayer.filter !== undefined) {
+            layerConfig.filter = styleLayer.filter
+          }
+
+          mapInst.addLayer(layerConfig, styleLayer.beforeId)
           layerIds.push(styleLayer.id)
         } else {
           layerIds.push(styleLayer.id)

@@ -6,6 +6,12 @@ import { useTheme } from '../composables/useTheme'
 import { useMap } from '../composables/useMap'
 import { xuzhouBoundary, pipeNetwork, waterStations } from '../mock/geojson'
 
+const props = withDefaults(defineProps<{
+  showBusinessLayers?: boolean
+}>(), {
+  showBusinessLayers: true
+})
+
 const mapStore = useMapStore()
 const { isDark } = useTheme()
 const { registerLayer } = useMap()
@@ -13,62 +19,49 @@ const { registerLayer } = useMap()
 const mapElement = ref<HTMLElement | null>(null)
 let mapInstance: Map | null = null
 
-// 天地图 API Key 轮询池 (包含多个备用 Key 保证可用性)
-const TIANDITU_KEYS = [
-  '85542b8e390c5c7d0d0e74f37803e05a',
-  '7a9a95781a7a030b42f6236fa7c20d78',
-  '1d109683f4d84d998e1509157db6ee77',
-  'b25752c002ee8109bf15664188b8fa8d'
-]
-
-const getTiandituKey = () => {
-  const idx = Math.floor(Math.random() * TIANDITU_KEYS.length)
-  return TIANDITU_KEYS[idx]
+const getConfiguredTiandituKey = () => {
+  return mapStore.tiandituKey.trim() || localStorage.getItem('tianditu-key')?.trim() || ''
 }
 
 // 挂载时初始化地图
 onMounted(() => {
   if (!mapElement.value) return
 
-  const key = getTiandituKey()
-
-  // 初始化 MapLibre GL Map
-  mapInstance = new Map({
-    container: mapElement.value,
-    style: {
-      version: 8,
-      sources: {
+  const tiandituKey = getConfiguredTiandituKey()
+  const lightSources: Record<string, any> = tiandituKey
+    ? {
         'tianditu-light': {
           type: 'raster',
-          // 亮色底图背景：天地图电子地图
           tiles: [
-            `https://t0.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${key}`,
-            `https://t1.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${key}`,
-            `https://t2.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${key}`
+            `https://t0.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${tiandituKey}`,
+            `https://t1.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${tiandituKey}`,
+            `https://t2.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${tiandituKey}`
           ],
           tileSize: 256,
           attribution: '© 天地图'
         },
         'tianditu-light-anno': {
           type: 'raster',
-          // 天地图中文注记图层
           tiles: [
-            `https://t0.tianditu.gov.cn/cva_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=cva&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${key}`,
-            `https://t1.tianditu.gov.cn/cva_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=cva&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${key}`
+            `https://t0.tianditu.gov.cn/cva_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=cva&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${tiandituKey}`,
+            `https://t1.tianditu.gov.cn/cva_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=cva&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${tiandituKey}`
           ],
           tileSize: 256
-        },
-        'carto-dark': {
+        }
+      }
+    : {
+        'osm-light': {
           type: 'raster',
-          // 暗色底图：使用 CartoDB Dark Matter 瓦片，适合大屏
           tiles: [
-            'https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png'
+            'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
           ],
           tileSize: 256,
-          attribution: '&copy; OpenStreetMap &copy; CartoDB'
+          attribution: '© OpenStreetMap contributors'
         }
-      },
-      layers: [
+      }
+
+  const lightLayers: any[] = tiandituKey
+    ? [
         {
           id: 'basemap-light',
           type: 'raster',
@@ -84,7 +77,38 @@ onMounted(() => {
           layout: {
             visibility: isDark.value ? 'none' : 'visible'
           }
-        },
+        }
+      ]
+    : [
+        {
+          id: 'basemap-light',
+          type: 'raster',
+          source: 'osm-light',
+          layout: {
+            visibility: isDark.value ? 'none' : 'visible'
+          }
+        }
+      ]
+
+  // 初始化 MapLibre GL Map
+  mapInstance = new Map({
+    container: mapElement.value,
+    style: {
+      version: 8,
+      sources: {
+        ...lightSources,
+        'carto-dark': {
+          type: 'raster',
+          // 暗色底图：使用 CartoDB Dark Matter 瓦片，适合大屏
+          tiles: [
+            'https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png'
+          ],
+          tileSize: 256,
+          attribution: '&copy; OpenStreetMap &copy; CartoDB'
+        }
+      },
+      layers: [
+        ...lightLayers,
         {
           id: 'basemap-dark',
           type: 'raster',
@@ -111,132 +135,134 @@ onMounted(() => {
     mapStore.setMapInstance(mapInstance)
     mapStore.setMapLoaded(true)
 
-    // 1. 注册核心城区范围图层
-    registerLayer('xuzhou-boundary', {
-      name: '徐州市核心城区',
-      type: 'geojson',
-      source: {
+    if (props.showBusinessLayers) {
+      // 1. 注册核心城区范围图层
+      registerLayer('xuzhou-boundary', {
+        name: '徐州市核心城区',
         type: 'geojson',
-        data: xuzhouBoundary
-      },
-      layers: [
-        {
-          id: 'boundary-fill',
-          type: 'fill',
-          paint: {
-            'fill-color': '#1890ff',
-            'fill-opacity': isDark.value ? 0.08 : 0.05
-          }
+        source: {
+          type: 'geojson',
+          data: xuzhouBoundary
         },
-        {
-          id: 'boundary-line',
-          type: 'line',
-          paint: {
-            'line-color': '#1890ff',
-            'line-width': 2,
-            'line-dasharray': [4, 4]
+        layers: [
+          {
+            id: 'boundary-fill',
+            type: 'fill',
+            paint: {
+              'fill-color': '#1890ff',
+              'fill-opacity': isDark.value ? 0.08 : 0.05
+            }
+          },
+          {
+            id: 'boundary-line',
+            type: 'line',
+            paint: {
+              'line-color': '#1890ff',
+              'line-width': 2,
+              'line-dasharray': [4, 4]
+            }
           }
-        }
-      ]
-    })
+        ]
+      })
 
-    // 2. 注册市政排水管网图层
-    registerLayer('pipe-network', {
-      name: '市政排水管网',
-      type: 'geojson',
-      source: {
+      // 2. 注册市政排水管网图层
+      registerLayer('pipe-network', {
+        name: '市政排水管网',
         type: 'geojson',
-        data: pipeNetwork
-      },
-      layers: [
-        {
-          id: 'pipe-line',
-          type: 'line',
-          paint: {
-            // 根据状态渲染不同颜色：超负荷为红色，预警为橙色，正常为绿色
-            'line-color': [
-              'match',
-              ['get', 'status'],
-              '超负荷', '#ff4d4f',
-              '预警', '#faad14',
-              '#52c41a'
-            ],
-            'line-width': 4,
-            'line-opacity': 0.8
+        source: {
+          type: 'geojson',
+          data: pipeNetwork
+        },
+        layers: [
+          {
+            id: 'pipe-line',
+            type: 'line',
+            paint: {
+              // 根据状态渲染不同颜色：超负荷为红色，预警为橙色，正常为绿色
+              'line-color': [
+                'match',
+                ['get', 'status'],
+                '超负荷', '#ff4d4f',
+                '预警', '#faad14',
+                '#52c41a'
+              ],
+              'line-width': 4,
+              'line-opacity': 0.8
+            }
           }
-        }
-      ]
-    })
+        ]
+      })
 
-    // 3. 注册积水与水位监测站图层
-    registerLayer('water-stations', {
-      name: '水位与积水监测站',
-      type: 'geojson',
-      source: {
+      // 3. 注册积水与水位监测站图层
+      registerLayer('water-stations', {
+        name: '水位与积水监测站',
         type: 'geojson',
-        data: waterStations
-      },
-      layers: [
-        {
-          id: 'station-point',
-          type: 'circle',
-          paint: {
-            // 根据监测状态渲染点颜色：红色为超警戒值，橙色为预警，绿色为正常
-            'circle-color': [
-              'match',
-              ['get', 'status'],
-              '超警戒', '#ff4d4f',
-              '预警', '#faad14',
-              '#52c41a'
-            ],
-            'circle-radius': 9,
-            'circle-stroke-width': 2,
-            'circle-stroke-color': '#ffffff'
+        source: {
+          type: 'geojson',
+          data: waterStations
+        },
+        layers: [
+          {
+            id: 'station-point',
+            type: 'circle',
+            paint: {
+              // 根据监测状态渲染点颜色：红色为超警戒值，橙色为预警，绿色为正常
+              'circle-color': [
+                'match',
+                ['get', 'status'],
+                '超警戒', '#ff4d4f',
+                '预警', '#faad14',
+                '#52c41a'
+              ],
+              'circle-radius': 9,
+              'circle-stroke-width': 2,
+              'circle-stroke-color': '#ffffff'
+            }
           }
+        ]
+      })
+
+      // 4. 绑定交互事件：点击监测点展示气泡弹窗 (Popup)
+      mapInstance.on('click', 'station-point', (e) => {
+        if (!mapInstance || !e.features || !e.features[0]) return
+        const feature = e.features[0]
+        const featureProps = feature.properties
+        const coordinates = (feature.geometry as any).coordinates.slice()
+
+        // 调整经纬度以防在拉伸缩放时偏离
+        while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
+          coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360
         }
-      ]
-    })
 
-    // 4. 绑定交互事件：点击监测点展示气泡弹窗 (Popup)
-    mapInstance.on('click', 'station-point', (e) => {
-      if (!mapInstance || !e.features || !e.features[0]) return
-      const feature = e.features[0]
-      const props = feature.properties
-      const coordinates = (feature.geometry as any).coordinates.slice()
+        const statusColor = featureProps.status === '正常' ? '#52c41a' : featureProps.status === '预警' ? '#faad14' : '#ff4d4f'
 
-      // 调整经纬度以防在拉伸缩放时偏离
-      while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
-        coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360
-      }
+        const htmlContent = `
+          <div class="map-popup-card">
+            <div class="popup-title">${featureProps.name}</div>
+            <div class="popup-item"><strong>站点编码:</strong> <span>${featureProps.id}</span></div>
+            <div class="popup-item"><strong>站点类型:</strong> <span>${featureProps.type}</span></div>
+            <div class="popup-item"><strong>当前水位:</strong> <span class="highlight-val" style="color: ${statusColor}">${featureProps.waterLevel}</span></div>
+            <div class="popup-item"><strong>警戒水位:</strong> <span>${featureProps.warningLevel}</span></div>
+            <div class="popup-item"><strong>当前流量:</strong> <span>${featureProps.flowRate}</span></div>
+            <div class="popup-item"><strong>测报状态:</strong> <span class="status-badge" style="background: ${statusColor}22; color: ${statusColor}; border: 1px solid ${statusColor}44;">${featureProps.status}</span></div>
+            <div class="popup-item popup-addr"><strong>详细地址:</strong> <span>${featureProps.address}</span></div>
+          </div>
+        `
 
-      const statusColor = props.status === '正常' ? '#52c41a' : props.status === '预警' ? '#faad14' : '#ff4d4f'
-      
-      const htmlContent = `
-        <div class="map-popup-card">
-          <div class="popup-title">${props.name}</div>
-          <div class="popup-item"><strong>站点编码:</strong> <span>${props.id}</span></div>
-          <div class="popup-item"><strong>站点类型:</strong> <span>${props.type}</span></div>
-          <div class="popup-item"><strong>当前水位:</strong> <span class="highlight-val" style="color: ${statusColor}">${props.waterLevel}</span></div>
-          <div class="popup-item"><strong>警戒水位:</strong> <span>${props.warningLevel}</span></div>
-          <div class="popup-item"><strong>当前流量:</strong> <span>${props.flowRate}</span></div>
-          <div class="popup-item"><strong>测报状态:</strong> <span class="status-badge" style="background: ${statusColor}22; color: ${statusColor}; border: 1px solid ${statusColor}44;">${props.status}</span></div>
-          <div class="popup-item popup-addr"><strong>详细地址:</strong> <span>${props.address}</span></div>
-        </div>
-      `
+        new Popup({ className: 'custom-webgis-popup' })
+          .setLngLat(coordinates as [number, number])
+          .setHTML(htmlContent)
+          .addTo(mapInstance)
+      })
 
-      new Popup({ className: 'custom-webgis-popup' })
-        .setLngLat(coordinates as [number, number])
-        .setHTML(htmlContent)
-        .addTo(mapInstance)
-    })
-
-    // 悬浮在监测点上时鼠标变小手
-    mapInstance.on('mouseenter', 'station-point', () => {
-      if (mapInstance) mapInstance.getCanvas().style.cursor = 'pointer'
-    })
-    mapInstance.on('mouseleave', 'station-point', () => {
-      if (mapInstance) mapInstance.getCanvas().style.cursor = ''
-    })
+      // 悬浮在监测点上时鼠标变小手
+      mapInstance.on('mouseenter', 'station-point', () => {
+        if (mapInstance) mapInstance.getCanvas().style.cursor = 'pointer'
+      })
+      mapInstance.on('mouseleave', 'station-point', () => {
+        if (mapInstance) mapInstance.getCanvas().style.cursor = ''
+      })
+    }
   })
 })
 

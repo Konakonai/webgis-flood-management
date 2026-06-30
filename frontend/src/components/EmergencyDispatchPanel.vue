@@ -3,7 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { 
   NCard, NTabs, NTabPane, NList, NListItem, NThing, NTag, NButton, 
   NSpace, NForm, NFormItem, NInput, NSelect, NModal, NDivider, 
-  NStatistic, NEmpty, useMessage, useNotification 
+  NStatistic, NEmpty, NText, useMessage, useNotification
 } from 'naive-ui'
 import * as turf from '@turf/turf'
 import maplibregl from 'maplibre-gl'
