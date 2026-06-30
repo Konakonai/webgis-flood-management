@@ -909,7 +909,7 @@ onUnmounted(() => {
   position: absolute;
   top: 80px;
   left: 15px;
-  width: 330px;
+  width: clamp(330px, 22vw, 390px);
   max-height: calc(100vh - 110px);
   z-index: 10;
   display: flex;
@@ -1139,6 +1139,19 @@ onUnmounted(() => {
 
 .trigger-text {
   font-size: 12px;
+}
+
+@media (min-width: 1800px) {
+  .spatial-query-panel {
+    top: 88px;
+    left: 22px;
+  }
+}
+
+@media (max-width: 980px) {
+  .spatial-query-panel {
+    width: min(330px, calc(100vw - 30px));
+  }
 }
 </style>
 

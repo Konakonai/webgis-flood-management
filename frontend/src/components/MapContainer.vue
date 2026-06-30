@@ -19,76 +19,9 @@ const { registerLayer } = useMap()
 const mapElement = ref<HTMLElement | null>(null)
 let mapInstance: Map | null = null
 
-const getConfiguredTiandituKey = () => {
-  return mapStore.tiandituKey.trim() || localStorage.getItem('tianditu-key')?.trim() || ''
-}
-
 // 挂载时初始化地图
 onMounted(() => {
   if (!mapElement.value) return
-
-  const tiandituKey = getConfiguredTiandituKey()
-  const lightSources: Record<string, any> = tiandituKey
-    ? {
-        'tianditu-light': {
-          type: 'raster',
-          tiles: [
-            `https://t0.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${tiandituKey}`,
-            `https://t1.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${tiandituKey}`,
-            `https://t2.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${tiandituKey}`
-          ],
-          tileSize: 256,
-          attribution: '© 天地图'
-        },
-        'tianditu-light-anno': {
-          type: 'raster',
-          tiles: [
-            `https://t0.tianditu.gov.cn/cva_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=cva&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${tiandituKey}`,
-            `https://t1.tianditu.gov.cn/cva_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=cva&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${tiandituKey}`
-          ],
-          tileSize: 256
-        }
-      }
-    : {
-        'osm-light': {
-          type: 'raster',
-          tiles: [
-            'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
-          ],
-          tileSize: 256,
-          attribution: '© OpenStreetMap contributors'
-        }
-      }
-
-  const lightLayers: any[] = tiandituKey
-    ? [
-        {
-          id: 'basemap-light',
-          type: 'raster',
-          source: 'tianditu-light',
-          layout: {
-            visibility: isDark.value ? 'none' : 'visible'
-          }
-        },
-        {
-          id: 'basemap-light-anno',
-          type: 'raster',
-          source: 'tianditu-light-anno',
-          layout: {
-            visibility: isDark.value ? 'none' : 'visible'
-          }
-        }
-      ]
-    : [
-        {
-          id: 'basemap-light',
-          type: 'raster',
-          source: 'osm-light',
-          layout: {
-            visibility: isDark.value ? 'none' : 'visible'
-          }
-        }
-      ]
 
   // 初始化 MapLibre GL Map
   mapInstance = new Map({
@@ -96,7 +29,14 @@ onMounted(() => {
     style: {
       version: 8,
       sources: {
-        ...lightSources,
+        'osm-light': {
+          type: 'raster',
+          tiles: [
+            'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+          ],
+          tileSize: 256,
+          attribution: '© OpenStreetMap contributors'
+        },
         'carto-dark': {
           type: 'raster',
           // 暗色底图：使用 CartoDB Dark Matter 瓦片，适合大屏
@@ -108,7 +48,14 @@ onMounted(() => {
         }
       },
       layers: [
-        ...lightLayers,
+        {
+          id: 'basemap-light',
+          type: 'raster',
+          source: 'osm-light',
+          layout: {
+            visibility: isDark.value ? 'none' : 'visible'
+          }
+        },
         {
           id: 'basemap-dark',
           type: 'raster',

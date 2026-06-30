@@ -887,17 +887,30 @@ onUnmounted(() => {
   position: absolute;
   top: 20px;
   right: 20px;
-  width: 360px;
+  width: clamp(360px, 24vw, 430px);
   height: calc(100vh - 110px);
   max-height: 900px;
   display: flex;
   flex-direction: column;
   border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--panel-shadow);
   background: var(--bg);
   border: 1px solid var(--border);
   transition: all 0.3s ease;
   overflow: hidden;
+}
+
+@media (min-width: 1800px) {
+  .dispatch-panel {
+    top: 24px;
+    right: 24px;
+  }
+}
+
+@media (max-width: 980px) {
+  .dispatch-panel {
+    width: min(360px, calc(100vw - 30px));
+  }
 }
 
 .panel-header {

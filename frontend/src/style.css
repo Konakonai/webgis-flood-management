@@ -5,20 +5,32 @@
 :root {
   /* 浅色主题 CSS 变量 */
   --bg-color: #f7f9fc;
-  --bg-card: rgba(255, 255, 255, 0.9);
-  --border-color: #e2e8f0;
-  --text-primary: #1f2225;
-  --text-secondary: #718096;
-  --primary-color: #1890ff;
-  --accent-color: #7a2be2;
-  --accent-hover: #9b59b6;
-  --shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --bg-card: #ffffff;
+  --bg-panel: #ffffff;
+  --bg-muted: #f4f7fb;
+  --border-color: #d7dee8;
+  --text-primary: #162033;
+  --text-secondary: #5f6f86;
+  --primary-color: #129064;
+  --accent-color: #1677ff;
+  --accent-hover: #0958d9;
+  --shadow: 0 12px 32px rgba(15, 23, 42, 0.14);
+  --panel-shadow: 0 16px 36px rgba(15, 23, 42, 0.18);
+  --bg: var(--bg-panel);
+  --border: var(--border-color);
+  --text: var(--text-primary);
+  --text-h: #0f172a;
+  --accent: var(--accent-color);
+  --accent-bg: rgba(22, 119, 255, 0.10);
+  --accent-border: rgba(22, 119, 255, 0.24);
 }
 
 .dark-theme {
   /* 深色主题 CSS 变量 */
   --bg-color: #101014;
   --bg-card: rgba(24, 24, 28, 0.9);
+  --bg-panel: rgba(24, 24, 28, 0.92);
+  --bg-muted: rgba(255, 255, 255, 0.06);
   --border-color: #333339;
   --text-primary: #f3f4f6;
   --text-secondary: #a0aec0;
@@ -26,6 +38,14 @@
   --accent-color: #8a2be2;
   --accent-hover: #a29bfe;
   --shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  --panel-shadow: 0 20px 46px rgba(0, 0, 0, 0.46);
+  --bg: var(--bg-panel);
+  --border: var(--border-color);
+  --text: var(--text-primary);
+  --text-h: #ffffff;
+  --accent: var(--accent-color);
+  --accent-bg: rgba(138, 43, 226, 0.14);
+  --accent-border: rgba(138, 43, 226, 0.28);
 }
 
 html, body {
@@ -38,6 +58,8 @@ html, body {
   background-color: var(--bg-color);
   color: var(--text-primary);
   transition: background-color 0.3s ease, color 0.3s ease;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 #app {
@@ -58,7 +80,7 @@ html, body {
   border-radius: 6px !important;
   box-shadow: var(--shadow) !important;
   border: 1px solid var(--border-color) !important;
-  background: var(--bg-card) !important;
+  background: var(--bg-panel) !important;
   overflow: hidden;
 }
 
@@ -101,6 +123,46 @@ html, body {
 .maplibregl-popup-close-button:hover {
   color: #ff4d4f !important;
   background-color: transparent !important;
+}
+
+.floating-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--panel-shadow);
+  color: var(--text-primary);
+  padding: 14px;
+}
+
+.light-theme .floating-card {
+  background: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.dark-theme .floating-card {
+  background: var(--bg-panel);
+  backdrop-filter: blur(14px) saturate(120%);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
+}
+
+@media (min-resolution: 1.5dppx) {
+  :root {
+    --shadow: 0 10px 28px rgba(15, 23, 42, 0.13);
+    --panel-shadow: 0 14px 34px rgba(15, 23, 42, 0.17);
+  }
+}
+
+@media (min-width: 1600px) {
+  html {
+    font-size: 16.5px;
+  }
+}
+
+@media (min-width: 2200px) {
+  html {
+    font-size: 17px;
+  }
 }
 
 /* ==========================================================================

@@ -14,12 +14,6 @@ export interface MapLayer {
 
 export const useMapStore = defineStore('map', () => {
   const mapInstance = shallowRef<Map | null>(null)
-  const tiandituKey = ref(localStorage.getItem('tianditu-key') || '')
-
-  const setTiandituKey = (key: string) => {
-    tiandituKey.value = key
-    localStorage.setItem('tianditu-key', key)
-  }
   const isMapLoaded = ref(false)
   const activeLayers = ref<MapLayer[]>([])
 
@@ -86,13 +80,11 @@ export const useMapStore = defineStore('map', () => {
     mapInstance,
     isMapLoaded,
     activeLayers,
-    tiandituKey,
     setMapInstance,
     setMapLoaded,
     addLayerToStore,
     removeLayerFromStore,
     updateLayerVisibility,
-    updateLayerOpacity,
-    setTiandituKey
+    updateLayerOpacity
   }
 })

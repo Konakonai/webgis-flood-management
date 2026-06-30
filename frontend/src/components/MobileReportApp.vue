@@ -427,17 +427,19 @@ watch(reports, saveReports, { deep: true })
 <style scoped>
 .mobile-report-app {
   width: 100vw;
-  height: 100vh;
+  height: 100dvh;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   overflow: hidden;
-  background: #f7f9fc;
+  background: #eef3f8;
   color: #111827;
 }
 
 .mobile-map-shell {
   position: relative;
   min-height: 0;
+  overflow: hidden;
+  background: #dbe8f2;
 }
 
 .center-reticle {
@@ -457,21 +459,21 @@ watch(reports, saveReports, { deep: true })
 
 .map-status-pill {
   position: absolute;
-  top: max(12px, env(safe-area-inset-top));
+  top: max(14px, env(safe-area-inset-top));
   left: 12px;
   right: 12px;
   z-index: 5;
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 10px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  padding: 9px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
   font-size: 12px;
-  font-weight: 600;
-  color: #334155;
+  font-weight: 700;
+  color: #1e293b;
 }
 
 .report-sheet {
@@ -483,9 +485,9 @@ watch(reports, saveReports, { deep: true })
   padding: 14px 16px calc(16px + env(safe-area-inset-bottom));
   overflow-y: auto;
   border-top: 1px solid #e5e7eb;
-  border-radius: 8px 8px 0 0;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 -10px 28px rgba(15, 23, 42, 0.14);
+  border-radius: 10px 10px 0 0;
+  background: #ffffff;
+  box-shadow: 0 -14px 34px rgba(15, 23, 42, 0.16);
 }
 
 .sheet-header {
@@ -610,7 +612,7 @@ watch(reports, saveReports, { deep: true })
   object-fit: cover;
 }
 
-@media (min-width: 640px) {
+@media (min-width: 640px) and (max-width: 899px) {
   .mobile-report-app {
     grid-template-rows: minmax(0, 1fr) auto;
   }
@@ -621,6 +623,57 @@ watch(reports, saveReports, { deep: true })
     margin: 0 auto;
     border: 1px solid #e5e7eb;
     border-bottom: 0;
+  }
+}
+
+@media (min-width: 900px) {
+  .mobile-report-app {
+    grid-template-columns: minmax(0, 1fr) minmax(380px, 440px);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 18px;
+    padding: 18px;
+    background: #eef3f8;
+  }
+
+  .mobile-map-shell {
+    border: 1px solid #d7dee8;
+    border-radius: 10px;
+    box-shadow: 0 14px 36px rgba(15, 23, 42, 0.16);
+  }
+
+  .map-status-pill {
+    right: auto;
+    width: min(540px, calc(100% - 24px));
+  }
+
+  .report-sheet {
+    align-self: stretch;
+    max-height: none;
+    height: 100%;
+    padding: 22px;
+    border: 1px solid #d7dee8;
+    border-radius: 10px;
+    box-shadow: 0 14px 36px rgba(15, 23, 42, 0.14);
+  }
+
+  .sheet-header h1 {
+    font-size: 26px;
+  }
+
+  .image-preview img {
+    max-height: 220px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .mobile-report-app {
+    grid-template-columns: minmax(0, 1fr) 460px;
+    gap: 22px;
+    padding: 22px;
+  }
+
+  .report-sheet {
+    padding: 24px;
   }
 }
 </style>
