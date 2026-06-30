@@ -3,20 +3,22 @@ import { ref } from 'vue'
 
 export type ThemeMode = 'light' | 'dark'
 
+const THEME_STORAGE_KEY = 'theme-mode-v2'
+
 export const useThemeStore = defineStore('theme', () => {
   const currentTheme = ref<ThemeMode>(
-    (localStorage.getItem('theme-mode') as ThemeMode) || 'dark'
+    (localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode) || 'light'
   )
 
   const toggleTheme = () => {
     currentTheme.value = currentTheme.value === 'light' ? 'dark' : 'light'
-    localStorage.setItem('theme-mode', currentTheme.value)
+    localStorage.setItem(THEME_STORAGE_KEY, currentTheme.value)
     updateBodyClass()
   }
 
   const setTheme = (theme: ThemeMode) => {
     currentTheme.value = theme
-    localStorage.setItem('theme-mode', theme)
+    localStorage.setItem(THEME_STORAGE_KEY, theme)
     updateBodyClass()
   }
 
