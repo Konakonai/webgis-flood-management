@@ -731,7 +731,7 @@ onUnmounted(() => {
     <div class="panel-header-row">
       <div class="title-section">
         <n-icon :component="Compass" size="18" />
-        <span class="panel-title font-bold">空间查询与检索</span>
+        <h2 class="panel-title font-bold">空间分析</h2>
       </div>
       <div class="action-section">
         <n-button size="tiny" circle secondary @click="toggleMinimize" title="折叠/展开">
@@ -944,6 +944,7 @@ onUnmounted(() => {
 }
 
 .panel-title {
+  margin: 0;
   font-size: 14px;
   color: var(--text-primary, #1f2225);
 }
@@ -1161,7 +1162,10 @@ onUnmounted(() => {
 
 @media (max-width: 980px) {
   .spatial-query-panel {
-    width: min(330px, calc(100vw - 30px));
+    top: 64px;
+    left: 15px;
+    width: calc(100vw - 30px);
+    max-height: calc(100% - 79px);
   }
 }
 </style>

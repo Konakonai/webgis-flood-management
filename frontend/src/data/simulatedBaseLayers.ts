@@ -1,6 +1,6 @@
 import type { FeatureCollection } from 'geojson'
 
-// 徐州市主要城区模拟行政边界
+// 离线交付所需的徐州市业务底图数据；这些要素用于地图基础展示，不替代后端业务数据。
 export const xuzhouBoundary: FeatureCollection = {
   type: 'FeatureCollection',
   features: [

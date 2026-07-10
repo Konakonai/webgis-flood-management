@@ -695,15 +695,14 @@ watch(showRegisterModal, (visible) => {
     <!-- 应急调度主控制面板 -->
     <n-card id="emergency-dispatch-card" class="dispatch-panel" :bordered="false" size="small">
       <div class="panel-header">
-        <div class="title panel-title-row"><n-icon :component="Waves" size="18" />应急调度与资源管理</div>
-        <div class="subtitle">Flood Dispatch & Resource Management</div>
+        <h2 class="title panel-title-row"><n-icon :component="Waves" size="18" />应急指挥</h2>
       </div>
       
       <n-tabs v-model:value="activeTab" justify-content="space-evenly" type="line" animated class="tabs-container">
         <!-- 工单管理 Tab -->
         <n-tab-pane name="workorders">
           <template #tab><span class="tab-label"><n-icon :component="ClipboardList" size="15" />工单管理</span></template>
-          <div class="tab-scroll-box">
+          <div class="tab-scroll-box" tabindex="0" aria-label="工单列表">
             <!-- 状态过滤 -->
             <div class="filter-wrapper">
               <n-space size="small">
@@ -726,7 +725,10 @@ watch(showRegisterModal, (visible) => {
                 v-for="alarm in filteredAlarms" 
                 :key="alarm.id" 
                 :class="{ 'is-selected': store.selectedAlarmId === alarm.id }"
+                tabindex="0"
+                role="button"
                 @click="store.selectedAlarmId = alarm.id"
+                @keydown.enter.space.prevent="store.selectedAlarmId = alarm.id"
               >
                 <n-thing>
                   <template #header>
@@ -735,7 +737,7 @@ watch(showRegisterModal, (visible) => {
                   <template #header-extra>
                     <n-space size="small">
                       <n-tag :type="alarm.severity === 'high' ? 'error' : (alarm.severity === 'medium' ? 'warning' : 'info')" size="small">
-                        {{ alarm.severity === 'high' ? '严重高' : (alarm.severity === 'medium' ? '中度' : '轻微') }}
+                        {{ alarm.severity === 'high' ? '严重' : (alarm.severity === 'medium' ? '中度' : '轻微') }}
                       </n-tag>
                       <n-tag :type="alarm.status === '待派单' ? 'error' : (alarm.status === '处置中' ? 'warning' : (alarm.status === '已完成' ? 'success' : 'default'))" size="small">
                         {{ alarm.status }}
@@ -817,7 +819,7 @@ watch(showRegisterModal, (visible) => {
         <!-- 抢险资源 Tab -->
         <n-tab-pane name="resources">
           <template #tab><span class="tab-label"><n-icon :component="Truck" size="15" />抢险资源</span></template>
-          <div class="tab-scroll-box">
+          <div class="tab-scroll-box" tabindex="0" aria-label="抢险资源列表">
             <!-- 泵车驻地列表 -->
             <div class="section-title section-heading"><n-icon :component="Truck" size="15" />移动排水泵车驻地 <span class="section-count">{{ store.pumpStations.length }}</span></div>
             <n-list hoverable class="resource-item-list">
@@ -960,6 +962,15 @@ watch(showRegisterModal, (visible) => {
   overflow: hidden;
 }
 
+.dispatch-panel :deep(.n-card-content) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
 @media (min-width: 1800px) {
   .dispatch-panel {
     top: 24px;
@@ -969,7 +980,11 @@ watch(showRegisterModal, (visible) => {
 
 @media (max-width: 980px) {
   .dispatch-panel {
-    width: min(360px, calc(100vw - 30px));
+    top: 64px;
+    right: 15px;
+    width: calc(100vw - 30px);
+    height: calc(100% - 79px);
+    max-height: none;
   }
 }
 
@@ -979,6 +994,7 @@ watch(showRegisterModal, (visible) => {
 }
 
 .panel-header .title {
+  margin: 0;
   font-size: 17px;
   font-weight: bold;
   color: var(--text-h);
@@ -999,16 +1015,17 @@ watch(showRegisterModal, (visible) => {
   color: var(--primary-color);
 }
 
-.panel-header .subtitle {
-  font-size: 11px;
-  color: #9ca3af;
-  margin-top: 2px;
-}
-
 .tabs-container {
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+:deep(.n-tabs-pane-wrapper) {
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -1018,6 +1035,7 @@ watch(showRegisterModal, (visible) => {
 
 :deep(.n-tab-pane) {
   height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1025,8 +1043,16 @@ watch(showRegisterModal, (visible) => {
 
 .tab-scroll-box {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   padding: 12px;
+}
+
+.tab-scroll-box:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: -2px;
 }
 
 /* 过滤列表部分 */

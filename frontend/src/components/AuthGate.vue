@@ -6,8 +6,8 @@ import { useAuthStore } from '../store/auth'
 
 const auth = useAuthStore()
 const message = useMessage()
-const username = ref('admin')
-const password = ref('admin123')
+const username = ref('')
+const password = ref('')
 
 const submit = async () => {
   if (!username.value.trim() || !password.value) {
@@ -26,7 +26,7 @@ const submit = async () => {
 <template>
   <div v-if="!auth.ready" class="auth-loading"><n-spin size="large" /></div>
   <div v-else-if="!auth.isAuthenticated" class="auth-overlay">
-    <n-card class="auth-card" title="内涝应急管理系统" :bordered="false">
+    <n-card class="auth-card" title="徐州市城市内涝应急指挥平台" :bordered="false">
       <p>请登录后进入调度工作台</p>
       <n-form @submit.prevent="submit">
         <n-form-item label="用户名">
@@ -37,7 +37,6 @@ const submit = async () => {
         </n-form-item>
         <n-button type="primary" block :loading="auth.loading" attr-type="submit">登录</n-button>
       </n-form>
-      <small>课程演示账号：admin / admin123</small>
     </n-card>
   </div>
 </template>
@@ -54,5 +53,4 @@ const submit = async () => {
 }
 .auth-card { width: min(390px, calc(100vw - 32px)); box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18); }
 .auth-card p { margin: 0 0 18px; color: #64748b; }
-.auth-card small { display: block; margin-top: 14px; color: #94a3b8; }
 </style>

@@ -618,4 +618,4 @@ OSRM 使用标准响应，不使用 `Result<T>` 包装。
 3. `PUT /api/work-orders/{id}/status` 保留旧查询参数形式；新代码使用 PATCH JSON。
 4. `GET /api/reports/nearby` 保留原始 FeatureCollection，便于直接作为地图 Source。
 5. 展示 ID 与数据库操作 ID 不同；泵车兼容数组通过 `resourceId` 同时提供派单所需数值 ID。
-6. 生产前端已接入 JWT、真实工单、OSRM、公众上报和 STOMP；Mock 仅在开发模式显式设置 `VITE_USE_MOCK=true` 时加载。
+6. 前端已接入 JWT、真实工单、OSRM、公众上报和 STOMP；开发与生产构建均不使用覆盖接口请求的 Mock。

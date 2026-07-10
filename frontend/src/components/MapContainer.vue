@@ -4,7 +4,7 @@ import { Map, Popup, NavigationControl } from 'maplibre-gl'
 import { useMapStore } from '../store/map'
 import { useTheme } from '../composables/useTheme'
 import { useMap } from '../composables/useMap'
-import { xuzhouBoundary, pipeNetwork, waterStations } from '../mock/geojson'
+import { xuzhouBoundary, pipeNetwork, waterStations } from '../data/simulatedBaseLayers'
 import { escapeHtml } from '../utils/html'
 
 const props = withDefaults(defineProps<{

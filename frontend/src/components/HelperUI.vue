@@ -7,6 +7,9 @@ import { useAuthStore } from '../store/auth'
 // 获取全局主题状态与切换函数
 const { isDark, toggleTheme } = useTheme()
 const auth = useAuthStore()
+const emit = defineEmits<{
+  guidePanel: [panel: 'spatial' | 'dispatch']
+}>()
 
 // 全屏状态控制
 const isFullscreen = ref(false)
@@ -43,14 +46,14 @@ const guideSteps: GuideStep[] = [
   },
   {
     target: '#spatial-query-panel',
-    title: '空间查询检索',
-    content: '提供多维度的空间查询工具。输入地址可快速进行本地搜索，或滑动滑块调整缓冲区半径，检索周边特定的排涝泵站与抢险物资储备点。',
+    title: '空间分析',
+    content: '绘制框选或多边形范围，结合缓冲区半径检索周边排涝泵站和抢险物资点。',
     placement: 'right'
   },
   {
     target: '#emergency-dispatch-card',
-    title: '应急调度管理',
-    content: '实时监测内涝警情及排涝工单。您可以在此指派抢险分队前往低洼易涝区，实时调度水泵和挡水板等防汛资源，协同高效作业。',
+    title: '应急指挥',
+    content: '查看内涝工单、派遣泵车并定位抢险资源，持续跟踪现场处置状态。',
     placement: 'left'
   }
 ]
@@ -193,6 +196,7 @@ const startGuide = () => {
 const nextStep = () => {
   if (currentStep.value < guideSteps.length - 1) {
     currentStep.value++
+    emit('guidePanel', currentStep.value === 2 ? 'dispatch' : 'spatial')
     nextTick(() => {
       updateGuidePosition()
     })
@@ -205,6 +209,7 @@ const nextStep = () => {
 const prevStep = () => {
   if (currentStep.value > 0) {
     currentStep.value--
+    if (currentStep.value === 1) emit('guidePanel', 'spatial')
     nextTick(() => {
       updateGuidePosition()
     })
@@ -248,7 +253,7 @@ onUnmounted(() => {
         <Waves class="logo-icon" />
       </div>
       <div class="title-container">
-        <h1 class="header-title">徐州市内涝监测与应急管理系统</h1>
+        <h1 class="header-title">徐州市城市内涝应急指挥平台</h1>
         <span class="header-subtitle">XUZHOU FLOOD RESPONSE · WEBGIS</span>
       </div>
     </div>

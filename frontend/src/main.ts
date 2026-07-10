@@ -3,10 +3,6 @@ import { createPinia } from 'pinia'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import './style.css'
 
-if (import.meta.env.DEV && import.meta.env.VITE_USE_MOCK === 'true') {
-  await import('./mock/api')
-}
-
 const isMobileReportPage =
   window.location.pathname === '/report' ||
   window.location.pathname.includes('/mobile-report') ||
