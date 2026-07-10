@@ -681,7 +681,7 @@ watch(showRegisterModal, (visible) => {
 <template>
   <div id="emergency-dispatch-panel" class="gis-overlay-container">
     <!-- 应急调度主控制面板 -->
-    <n-card class="dispatch-panel" :bordered="false" size="small">
+    <n-card id="emergency-dispatch-card" class="dispatch-panel" :bordered="false" size="small">
       <div class="panel-header">
         <div class="title">🌊 应急调度与资源管理</div>
         <div class="subtitle">Flood Dispatch & Resource Management</div>

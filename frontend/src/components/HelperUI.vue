@@ -47,7 +47,7 @@ const guideSteps: GuideStep[] = [
     placement: 'right'
   },
   {
-    target: '#emergency-dispatch-panel',
+    target: '#emergency-dispatch-card',
     title: '应急调度管理',
     content: '实时监测内涝警情及排涝工单。您可以在此指派抢险分队前往低洼易涝区，实时调度水泵和挡水板等防汛资源，协同高效作业。',
     placement: 'left'
@@ -63,6 +63,8 @@ const cutout = ref({ x: 0, y: 0, w: 0, h: 0 })
 const tooltipStyle = ref<Record<string, string>>({})
 
 const activeStepData = computed(() => guideSteps[currentStep.value])
+
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
 
 // 更新引导框位置和气泡样式
 const updateGuidePosition = () => {
@@ -86,16 +88,52 @@ const updateGuidePosition = () => {
 
   const rect = el.getBoundingClientRect()
   
-  // 给高亮区域边缘加 8px 的内边距，提升视觉呼吸感
+  // 高亮框始终约束在视口内，避免全屏地图的边框被裁掉。
+  const highlightPadding = 8
+  const viewportPadding = 4
+  const cutoutLeft = clamp(rect.left - highlightPadding, viewportPadding, window.innerWidth - viewportPadding)
+  const cutoutTop = clamp(rect.top - highlightPadding, viewportPadding, window.innerHeight - viewportPadding)
+  const cutoutRight = clamp(rect.right + highlightPadding, viewportPadding, window.innerWidth - viewportPadding)
+  const cutoutBottom = clamp(rect.bottom + highlightPadding, viewportPadding, window.innerHeight - viewportPadding)
   cutout.value = {
-    x: rect.left - 8,
-    y: rect.top - 8,
-    w: rect.width + 16,
-    h: rect.height + 16
+    x: cutoutLeft,
+    y: cutoutTop,
+    w: Math.max(0, cutoutRight - cutoutLeft),
+    h: Math.max(0, cutoutBottom - cutoutTop)
   }
 
-  const tooltipWidth = 340
+  const tooltipWidth = Math.min(360, window.innerWidth - 32)
+  const tooltipHalfHeight = 110
   const margin = 20 // 气泡距离高亮区域的边距
+  const centeredTop = clamp(
+    rect.top + rect.height / 2,
+    tooltipHalfHeight + 16,
+    window.innerHeight - tooltipHalfHeight - 16
+  )
+
+  const sideStyle = (preferredSide: 'left' | 'right') => {
+    const rightLeft = rect.right + margin
+    const leftLeft = rect.left - tooltipWidth - margin
+    const canUseRight = rightLeft + tooltipWidth <= window.innerWidth - 16
+    const canUseLeft = leftLeft >= 16
+    const side = preferredSide === 'right'
+      ? (canUseRight ? 'right' : canUseLeft ? 'left' : 'center')
+      : (canUseLeft ? 'left' : canUseRight ? 'right' : 'center')
+
+    if (side === 'center') {
+      return {
+        left: '50%',
+        top: `${centeredTop}px`,
+        transform: 'translate(-50%, -50%)'
+      }
+    }
+
+    return {
+      left: `${side === 'right' ? rightLeft : leftLeft}px`,
+      top: `${centeredTop}px`,
+      transform: 'translateY(-50%)'
+    }
+  }
 
   if (step.placement === 'center') {
     tooltipStyle.value = {
@@ -109,18 +147,14 @@ const updateGuidePosition = () => {
   } else if (step.placement === 'right') {
     tooltipStyle.value = {
       position: 'fixed',
-      left: `${rect.right + margin}px`,
-      top: `${rect.top + rect.height / 2}px`,
-      transform: 'translateY(-50%)',
+      ...sideStyle('right'),
       width: `${tooltipWidth}px`,
       zIndex: '9999'
     }
   } else if (step.placement === 'left') {
     tooltipStyle.value = {
       position: 'fixed',
-      left: `${rect.left - tooltipWidth - margin}px`,
-      top: `${rect.top + rect.height / 2}px`,
-      transform: 'translateY(-50%)',
+      ...sideStyle('left'),
       width: `${tooltipWidth}px`,
       zIndex: '9999'
     }
@@ -507,6 +541,7 @@ onUnmounted(() => {
   color: var(--text-primary);
   font-size: 13px;
   white-space: nowrap;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dark-theme .session-control,
@@ -528,6 +563,8 @@ onUnmounted(() => {
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
+  transition: color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .logout-btn:hover {
@@ -577,7 +614,7 @@ onUnmounted(() => {
 .guide-mask-rect {
   transition: x 0.3s cubic-bezier(0.4, 0, 0.2, 1),
               y 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-              width 0.3 cubic-bezier(0.4, 0, 0.2, 1),
+              width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
               height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -613,6 +650,7 @@ onUnmounted(() => {
   border-radius: 12px;
   box-shadow: var(--shadow);
   padding: 20px;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 12px;
