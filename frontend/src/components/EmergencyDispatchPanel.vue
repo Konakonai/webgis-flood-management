@@ -3,8 +3,20 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { 
   NCard, NTabs, NTabPane, NList, NListItem, NThing, NTag, NButton, 
   NSpace, NForm, NFormItem, NInput, NSelect, NModal, NDivider, 
-  NStatistic, NEmpty, NText, useMessage, useNotification
+  NStatistic, NEmpty, NText, NIcon, useMessage, useNotification
 } from 'naive-ui'
+import {
+  CircleCheck,
+  ClipboardList,
+  Clock3,
+  LocateFixed,
+  MapPin,
+  Package,
+  Route,
+  Truck,
+  Waves,
+  Zap
+} from 'lucide-vue-next'
 import * as turf from '@turf/turf'
 import maplibregl from 'maplibre-gl'
 import { useMap } from '../composables/useMap'
@@ -181,7 +193,7 @@ const drawResourceMarkers = () => {
     const popup = new maplibregl.Popup({ offset: 12 })
       .setHTML(`
         <div class="map-popup-card">
-          <h4 class="popup-title">📦 防汛物资点</h4>
+          <h4 class="popup-title">防汛物资点</h4>
           <div class="popup-item"><strong>名称:</strong><span>${escapeHtml(res.name)}</span></div>
           <div class="popup-item"><strong>物资储备:</strong><span>${escapeHtml(res.details)}</span></div>
           <div class="popup-item"><strong>地址:</strong><span>${escapeHtml(res.address)}</span></div>
@@ -212,7 +224,7 @@ const drawStationMarkers = () => {
     const popup = new maplibregl.Popup({ offset: 12 })
       .setHTML(`
         <div class="map-popup-card">
-          <h4 class="popup-title">🚒 泵车驻地</h4>
+          <h4 class="popup-title">泵车驻地</h4>
           <div class="popup-item"><strong>名称:</strong><span>${escapeHtml(pump.name)}</span></div>
           <div class="popup-item"><strong>装备车辆:</strong><span>${escapeHtml(pump.vehicle)}</span></div>
           <div class="popup-item"><strong>负责人:</strong><span>${escapeHtml(pump.contact)}</span></div>
@@ -258,7 +270,7 @@ const drawAlarmMarkers = () => {
     const popup = new maplibregl.Popup({ offset: 15 })
       .setHTML(`
         <div class="map-popup-card">
-          <h4 class="popup-title">⚠️ 警情登记卡</h4>
+          <h4 class="popup-title">警情登记卡</h4>
           <div class="popup-item"><strong>报警人:</strong><span>${escapeHtml(alarm.reporter)} (${escapeHtml(maskPhone(alarm.phone))})</span></div>
           <div class="popup-item"><strong>严重程度:</strong><span class="badge ${severityClass}">${severityText}</span></div>
           <div class="popup-item"><strong>描述:</strong><span>${escapeHtml(alarm.description)}</span></div>
@@ -683,13 +695,14 @@ watch(showRegisterModal, (visible) => {
     <!-- 应急调度主控制面板 -->
     <n-card id="emergency-dispatch-card" class="dispatch-panel" :bordered="false" size="small">
       <div class="panel-header">
-        <div class="title">🌊 应急调度与资源管理</div>
+        <div class="title panel-title-row"><n-icon :component="Waves" size="18" />应急调度与资源管理</div>
         <div class="subtitle">Flood Dispatch & Resource Management</div>
       </div>
       
       <n-tabs v-model:value="activeTab" justify-content="space-evenly" type="line" animated class="tabs-container">
         <!-- 工单管理 Tab -->
-        <n-tab-pane name="workorders" tab="📝 工单管理">
+        <n-tab-pane name="workorders">
+          <template #tab><span class="tab-label"><n-icon :component="ClipboardList" size="15" />工单管理</span></template>
           <div class="tab-scroll-box">
             <!-- 状态过滤 -->
             <div class="filter-wrapper">
@@ -730,7 +743,7 @@ watch(showRegisterModal, (visible) => {
                     </n-space>
                   </template>
                   <template #description>
-                    <div class="alarm-time">🕒 登记时间: {{ alarm.time }}</div>
+                    <div class="alarm-time"><n-icon :component="Clock3" size="12" />登记时间: {{ alarm.time }}</div>
                     <div class="alarm-desc">{{ alarm.description }}</div>
                   </template>
 
@@ -741,13 +754,14 @@ watch(showRegisterModal, (visible) => {
                     <!-- 待派单状态：智能派车 -->
                     <div v-if="alarm.status === '待派单'" class="dispatch-action-box">
                       <div class="nearest-info" v-if="nearestPumpInfo">
-                        <div class="info-label">⚡ 智能匹配最近空闲驻地:</div>
+                        <div class="info-label inline-icon-label"><n-icon :component="Zap" size="14" />智能匹配最近空闲驻地</div>
                         <div class="info-value">{{ nearestPumpInfo.pump.name }}</div>
                         <div class="info-meta">直线距离: <strong>{{ nearestPumpInfo.distance }} km</strong></div>
                       </div>
                       <n-space vertical style="width: 100%; margin-top: 10px;">
                         <n-button type="primary" size="small" block :loading="actionLoading" @click="handleSmartDispatch(alarm)">
-                          🚀 智能一键派遣最近泵车
+                          <template #icon><n-icon :component="Route" /></template>
+                          智能派遣最近泵车
                         </n-button>
                         <n-select 
                           size="small"
@@ -770,21 +784,23 @@ watch(showRegisterModal, (visible) => {
                             <template #suffix>分钟</template>
                           </n-statistic>
                         </n-space>
-                        <div class="flow-tip">🟢 正在进行实时导航路径规划与粒子流动效果监控</div>
+                        <div class="flow-tip"><span class="live-status-dot"></span>实时导航与路径状态监控中</div>
                       </div>
                       <n-space style="margin-top: 10px;" justify="space-between">
                         <n-button size="small" type="warning" :disabled="Boolean(alarm.arrivedAt)" :loading="actionLoading" @click="handleMarkArrival(alarm.id)">
-                          {{ alarm.arrivedAt ? '📍 已抵达现场' : '📍 抵达现场并抢险' }}
+                          <template #icon><n-icon :component="MapPin" /></template>
+                          {{ alarm.arrivedAt ? '已抵达现场' : '抵达现场并抢险' }}
                         </n-button>
                         <n-button size="small" type="success" :loading="actionLoading" @click="handleMarkCompleted(alarm.id)">
-                          ✅ 险情处置完成
+                          <template #icon><n-icon :component="CircleCheck" /></template>
+                          险情处置完成
                         </n-button>
                       </n-space>
                     </div>
 
                     <!-- 已完成状态：展示总结 -->
                     <div v-else-if="alarm.status === '已完成'" class="dispatch-action-box text-center">
-                      <div class="completed-badge">🎉 警情处置圆满完成</div>
+                      <div class="completed-badge"><n-icon :component="CircleCheck" size="16" />警情处置完成</div>
                       <p class="completed-desc">排水队伍已归建，现场积水已退去。</p>
                     </div>
                   </div>
@@ -799,10 +815,11 @@ watch(showRegisterModal, (visible) => {
         </n-tab-pane>
 
         <!-- 抢险资源 Tab -->
-        <n-tab-pane name="resources" tab="🚒 抢险资源">
+        <n-tab-pane name="resources">
+          <template #tab><span class="tab-label"><n-icon :component="Truck" size="15" />抢险资源</span></template>
           <div class="tab-scroll-box">
             <!-- 泵车驻地列表 -->
-            <div class="section-title">🚛 移动排水泵车驻地 ({{ store.pumpStations.length }})</div>
+            <div class="section-title section-heading"><n-icon :component="Truck" size="15" />移动排水泵车驻地 <span class="section-count">{{ store.pumpStations.length }}</span></div>
             <n-list hoverable class="resource-item-list">
               <n-list-item v-for="pump in store.pumpStations" :key="pump.id">
                 <n-thing>
@@ -815,13 +832,14 @@ watch(showRegisterModal, (visible) => {
                     </n-tag>
                   </template>
                   <template #description>
-                    <div class="res-desc">🚚 车辆: {{ pump.vehicle }}</div>
-                    <div class="res-desc">📞 联系: {{ pump.contact }}</div>
-                    <div class="res-desc">📍 地址: {{ pump.address }}</div>
+                    <div class="res-desc"><span class="res-label">车辆</span>{{ pump.vehicle }}</div>
+                    <div class="res-desc"><span class="res-label">联系</span>{{ pump.contact }}</div>
+                    <div class="res-desc"><span class="res-label">地址</span>{{ pump.address }}</div>
                   </template>
                   <template #action>
                     <n-button size="tiny" type="info" secondary @click="locateLocation(pump.lng, pump.lat, pump.name)">
-                      📍 定位到该驻地
+                      <template #icon><n-icon :component="LocateFixed" /></template>
+                      定位驻地
                     </n-button>
                   </template>
                 </n-thing>
@@ -831,7 +849,7 @@ watch(showRegisterModal, (visible) => {
             <n-divider style="margin: 16px 0" />
 
             <!-- 防汛物资点列表 -->
-            <div class="section-title">📦 应急防汛物资储备库 ({{ store.resourceList.length }})</div>
+            <div class="section-title section-heading"><n-icon :component="Package" size="15" />应急防汛物资储备库 <span class="section-count">{{ store.resourceList.length }}</span></div>
             <n-list hoverable class="resource-item-list">
               <n-list-item v-for="res in store.resourceList" :key="res.id">
                 <n-thing>
@@ -844,12 +862,13 @@ watch(showRegisterModal, (visible) => {
                     </n-tag>
                   </template>
                   <template #description>
-                    <div class="res-desc">💼 储备物料: {{ res.details }}</div>
-                    <div class="res-desc">📍 地址: {{ res.address }}</div>
+                    <div class="res-desc"><span class="res-label">物料</span>{{ res.details }}</div>
+                    <div class="res-desc"><span class="res-label">地址</span>{{ res.address }}</div>
                   </template>
                   <template #action>
                     <n-button size="tiny" type="info" secondary @click="locateLocation(res.lng, res.lat, res.name)">
-                      📍 定位到物资点
+                      <template #icon><n-icon :component="LocateFixed" /></template>
+                      定位物资点
                     </n-button>
                   </template>
                 </n-thing>
@@ -865,7 +884,7 @@ watch(showRegisterModal, (visible) => {
       v-model:show="showRegisterModal" 
       preset="card" 
       class="register-modal"
-      title="🚨 新增防汛积水灾情登记" 
+      title="新增防汛积水灾情登记"
       style="width: 420px;" 
       :segmented="{ content: 'soft', footer: 'soft' }"
       @after-leave="mapStore.setInteractionMode('idle')"
@@ -894,9 +913,9 @@ watch(showRegisterModal, (visible) => {
           <n-select 
             v-model:value="registerForm.severity" 
             :options="[
-              { label: '🔴 严重高 (车辆受淹、无法通行)', value: 'high' },
-              { label: '🟡 中度 (缓慢积水、影响交通)', value: 'medium' },
-              { label: '🔵 轻微 (轻微反水、不影响通行)', value: 'low' }
+              { label: '严重｜车辆受淹、无法通行', value: 'high' },
+              { label: '中度｜缓慢积水、影响交通', value: 'medium' },
+              { label: '轻微｜轻微反水、不影响通行', value: 'low' }
             ]" 
           />
         </n-form-item>
@@ -963,6 +982,21 @@ watch(showRegisterModal, (visible) => {
   font-size: 17px;
   font-weight: bold;
   color: var(--text-h);
+}
+
+.panel-title-row,
+.tab-label,
+.inline-icon-label,
+.section-heading,
+.completed-badge {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.panel-title-row :deep(.n-icon),
+.section-heading :deep(.n-icon) {
+  color: var(--primary-color);
 }
 
 .panel-header .subtitle {
@@ -1035,6 +1069,9 @@ watch(showRegisterModal, (visible) => {
   font-size: 11px;
   color: #9ca3af;
   margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .alarm-desc {
@@ -1092,6 +1129,15 @@ watch(showRegisterModal, (visible) => {
   align-items: center;
 }
 
+.live-status-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.12);
+}
+
 .completed-badge {
   font-size: 13px;
   font-weight: bold;
@@ -1115,6 +1161,16 @@ watch(showRegisterModal, (visible) => {
   border-left: 3px solid var(--accent);
 }
 
+.section-count {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--bg-muted);
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-align: center;
+}
+
 .resource-item-list :deep(.n-list-item) {
   padding: 10px 8px;
   margin-bottom: 6px;
@@ -1133,6 +1189,13 @@ watch(showRegisterModal, (visible) => {
   font-size: 12px;
   color: var(--text);
   margin-bottom: 2px;
+}
+
+.res-label {
+  display: inline-block;
+  width: 34px;
+  margin-right: 6px;
+  color: var(--text-secondary);
 }
 
 .coordinate-text {

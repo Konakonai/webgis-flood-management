@@ -31,7 +31,8 @@ import {
   Hexagon,
   CheckCircle,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  X
 } from 'lucide-vue-next'
 
 // 使用地图的 useMap 组合式函数
@@ -739,7 +740,7 @@ onUnmounted(() => {
           </template>
         </n-button>
         <n-button size="tiny" circle secondary @click="closePanel" style="margin-left: 6px;" title="关闭">
-          ✕
+          <template #icon><n-icon :component="X" /></template>
         </n-button>
       </div>
     </div>
