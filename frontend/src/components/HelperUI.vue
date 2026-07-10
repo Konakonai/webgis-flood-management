@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useTheme } from '../composables/useTheme'
+import { useAuthStore } from '../store/auth'
 
 // 获取全局主题状态与切换函数
 const { isDark, toggleTheme } = useTheme()
+const auth = useAuthStore()
 
 // 全屏状态控制
 const isFullscreen = ref(false)
@@ -235,6 +237,14 @@ onUnmounted(() => {
         </svg>
         <span class="btn-text">新手引导</span>
       </button>
+
+      <!-- 当前会话：作为头栏正常布局的一部分，避免覆盖相邻功能按钮 -->
+      <div class="session-control" :title="`当前用户：${auth.user?.realName || auth.user?.username}`">
+        <span class="session-user">
+          {{ auth.user?.realName || auth.user?.username }}{{ auth.canManageWorkOrders ? '' : ' · 只读' }}
+        </span>
+        <button class="logout-btn" type="button" @click="auth.logout">退出</button>
+      </div>
 
       <!-- 全屏控制 -->
       <button class="action-btn" @click="toggleFullscreen" :title="isFullscreen ? '退出全屏' : '全屏显示'">
@@ -484,6 +494,46 @@ onUnmounted(() => {
   transform: translateY(0);
 }
 
+.session-control {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 7px 0 12px;
+  box-sizing: border-box;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: #f8fafc;
+  color: var(--text-primary);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.dark-theme .session-control,
+.dark-theme .action-btn {
+  background: var(--bg-card);
+}
+
+.session-user {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logout-btn {
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-left: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.logout-btn:hover {
+  color: var(--primary-color);
+}
+
 .btn-icon {
   width: 15px;
   height: 15px;
@@ -693,6 +743,14 @@ onUnmounted(() => {
     width: 36px;
     padding: 0;
     justify-content: center;
+  }
+
+  .session-control {
+    padding-left: 8px;
+  }
+
+  .session-user {
+    display: none;
   }
 }
 

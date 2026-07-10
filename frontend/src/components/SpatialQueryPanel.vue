@@ -69,6 +69,7 @@ const typeOptions = [
 const searchResults = ref<any[]>([])
 const resultMarkers = ref<any[]>([])
 let activePopup: maplibregl.Popup | null = null
+let registeredMap: maplibregl.Map | null = null
 
 // 框选临时起始经纬度
 let startPoint: [number, number] = [0, 0]
@@ -677,17 +678,13 @@ const unregisterMapEvents = () => {
 }
 
 watch([isLoaded, () => map.value], ([loaded, mapInst]) => {
-  if (loaded && mapInst) {
-    if (mapInst.loaded()) {
-      initLayers()
-      registerMapEvents()
-    } else {
-      mapInst.on('load', () => {
-        initLayers()
-        registerMapEvents()
-      })
-    }
-  }
+  if (!loaded || !mapInst || registeredMap === mapInst) return
+
+  // isMapLoaded 只会在 MapLibre 的 load 回调内置为 true。此时样式已经可用，
+  // 若再等待下一次 load 会错过唯一一次加载事件，导致所有绘图事件都未注册。
+  initLayers()
+  registerMapEvents()
+  registeredMap = mapInst
 }, { immediate: true })
 
 onUnmounted(() => {
@@ -712,6 +709,7 @@ onUnmounted(() => {
       if (map.value!.getSource(src)) map.value!.removeSource(src)
     })
   }
+  registeredMap = null
 })
 </script>
 

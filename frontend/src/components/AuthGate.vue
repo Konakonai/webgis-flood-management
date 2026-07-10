@@ -40,10 +40,6 @@ const submit = async () => {
       <small>课程演示账号：admin / admin123</small>
     </n-card>
   </div>
-  <div v-else class="session-pill">
-    <span>{{ auth.user?.realName || auth.user?.username }}{{ auth.canManageWorkOrders ? '' : ' · 只读' }}</span>
-    <n-button size="tiny" secondary @click="auth.logout">退出</n-button>
-  </div>
 </template>
 
 <style scoped>
@@ -59,20 +55,4 @@ const submit = async () => {
 .auth-card { width: min(390px, calc(100vw - 32px)); box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18); }
 .auth-card p { margin: 0 0 18px; color: #64748b; }
 .auth-card small { display: block; margin-top: 14px; color: #94a3b8; }
-.session-pill {
-  position: fixed;
-  top: 15px;
-  right: 112px;
-  z-index: 1100;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 8px 5px 11px;
-  border: 1px solid var(--border-color);
-  border-radius: 999px;
-  background: var(--bg-card);
-  box-shadow: var(--shadow);
-  color: var(--text-primary);
-  font-size: 12px;
-}
 </style>
