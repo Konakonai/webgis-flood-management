@@ -97,6 +97,13 @@ public class WorkOrderController {
         return Result.success("派单成功", workOrderService.dispatch(id, request, actor(user)));
     }
 
+    @PostMapping("/{id}/arrive")
+    @LogOperation(action = "ARRIVE", module = "WORK_ORDER", description = "记录应急资源抵达现场")
+    public Result<WorkOrder> markArrived(@PathVariable Long id,
+                                         @AuthenticationPrincipal JwtUserDetails user) {
+        return Result.success("已记录抵达现场", workOrderService.markArrived(id, actor(user)));
+    }
+
     @PutMapping("/{id}")
     @LogOperation(action = "UPDATE", module = "WORK_ORDER", description = "更新工单资料")
     public Result<WorkOrder> update(@PathVariable Long id,

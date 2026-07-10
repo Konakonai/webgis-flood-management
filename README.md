@@ -11,7 +11,7 @@
 - Flyway V1—V3 数据迁移、OpenAPI、健康检查和操作审计；
 - PostGIS、后端、OSRM、Nginx 前端四服务 Compose 编排。
 
-本轮严格没有修改 `frontend/**`。现有前端仍会无条件启用 Mock，并把工单与公众上报保存在 Pinia/`localStorage`，所以浏览器尚不能形成真实后端数据闭环。具体位置和修改方案见 [前端修改建议](docs/前端修改建议.md)。
+前端已完成真实后端联调：生产环境禁用 Mock，调度台使用 JWT、数据库工单、OSRM 路线和 STOMP 实时刷新；移动端上报使用服务端追踪码、受控图片上传和跨设备进度查询。历史问题及处理结果见 [前端修复记录](docs/前端修改建议.md)。
 
 ## 一键部署
 
@@ -64,4 +64,4 @@ cd backend && ./mvnw clean verify
 cd frontend && npm run build
 ```
 
-当前后端有 48 项自动化测试。开发进度、真实 PostGIS 烟测证据和剩余边界见 [初步开发报告](docs/初步开发报告.md)；接口可通过运行时 OpenAPI 查看，精确契约另见 `docs/API_CONTRACT.md`。
+当前后端有 50 项自动化测试。完整四服务冷启动、OSRM 江苏数据预处理、同源代理和浏览器业务闭环均已实测；证据见 [初步开发报告](docs/初步开发报告.md)。接口可通过运行时 OpenAPI 查看，精确契约另见 `docs/API_CONTRACT.md`。

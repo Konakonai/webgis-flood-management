@@ -2,6 +2,9 @@
 import { ref, reactive, watch, onUnmounted } from 'vue'
 import { useMap } from '../composables/useMap'
 import { useTheme } from '../composables/useTheme'
+import { useMapStore } from '../store/map'
+import { errorMessage, rawRequest } from '../services/api'
+import { escapeHtml } from '../utils/html'
 import * as turf from '@turf/turf'
 import maplibregl from 'maplibre-gl'
 import {
@@ -17,7 +20,8 @@ import {
   NListItem,
   NTag,
   NIcon,
-  NSpace
+  NSpace,
+  useMessage
 } from 'naive-ui'
 import {
   Search,
@@ -33,6 +37,8 @@ import {
 // 使用地图的 useMap 组合式函数
 const { map, isLoaded } = useMap()
 const { currentTheme } = useTheme()
+const mapStore = useMapStore()
+const message = useMessage()
 
 // 面板基础展示与收缩状态
 const visible = ref(true)
@@ -173,6 +179,7 @@ const initLayers = () => {
 // ----------------------------------------------------
 const disableMapInteractions = () => {
   if (!map.value) return
+  mapStore.setInteractionMode('draw-query')
   map.value.dragPan.disable()
   map.value.doubleClickZoom.disable()
   map.value.boxZoom.disable()
@@ -185,6 +192,7 @@ const restoreMapInteractions = () => {
   map.value.doubleClickZoom.enable()
   map.value.boxZoom.enable()
   map.value.getCanvas().style.cursor = ''
+  if (mapStore.interactionMode === 'draw-query') mapStore.setInteractionMode('idle')
 }
 
 // 开始矩形框选模式
@@ -479,25 +487,17 @@ const handleSearch = async () => {
   }
 
   try {
-    const response = await window.fetch('/api/spatial-query', {
+    const data = await rawRequest<{ features?: any[] }>('/api/spatial-query', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
       body: JSON.stringify(queryData)
     })
-
-    if (!response.ok) {
-      throw new Error('网络请求异常')
-    }
-
-    const data = await response.json()
     searchResults.value = data.features || []
 
     // 在地图上为查询结果渲染 Marker 标志
     addResultMarkersToMap()
   } catch (error) {
     console.error('空间检索出错:', error)
+    message.error(errorMessage(error))
   } finally {
     isSearching.value = false
   }
@@ -603,6 +603,7 @@ const showResultPopup = (feature: any) => {
   if (activePopup) activePopup.remove()
 
   const props = feature.properties
+  const safe = Object.fromEntries(Object.entries(props).map(([key, value]) => [key, escapeHtml(value)]))
   const isDark = currentTheme.value === 'dark'
   
   const textColor = isDark ? '#f3f4f6' : '#1f2225'
@@ -612,21 +613,21 @@ const showResultPopup = (feature: any) => {
   if (props.type === 'waterlogging') {
     detailsHtml = `
       <div style="display:flex; flex-direction:column; gap:6px; font-size:12px; line-height:1.5; color:${textColor}">
-        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">积水深度:</span><strong style="color:#d03050">${props.waterDepth}</strong></div>
-        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">当前状态:</span><strong style="color:${statusColor}">${props.statusName}</strong></div>
-        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">责任单位:</span><strong>${props.manager}</strong></div>
-        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">联系电话:</span><span style="font-family:monospace">${props.phone}</span></div>
-        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">详细地址:</span><span style="max-width:140px; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${props.address}">${props.address}</span></div>
+        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">积水深度:</span><strong style="color:#d03050">${safe.waterDepth}</strong></div>
+        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">当前状态:</span><strong style="color:${statusColor}">${safe.statusName}</strong></div>
+        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">责任单位:</span><strong>${safe.manager}</strong></div>
+        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">联系电话:</span><span style="font-family:monospace">${safe.phone}</span></div>
+        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">详细地址:</span><span style="max-width:140px; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${safe.address}">${safe.address}</span></div>
       </div>
     `
   } else if (props.type === 'pump') {
     detailsHtml = `
       <div style="display:flex; flex-direction:column; gap:6px; font-size:12px; line-height:1.5; color:${textColor}">
-        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">排涝能力:</span><strong>${props.capacity}</strong></div>
-        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">运转状态:</span><strong style="color:${statusColor}">${props.statusName}</strong></div>
-        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">管理中心:</span><strong>${props.manager}</strong></div>
-        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">值班电话:</span><span style="font-family:monospace">${props.phone}</span></div>
-        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">泵站地址:</span><span style="max-width:140px; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${props.address}">${props.address}</span></div>
+        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">排涝能力:</span><strong>${safe.capacity}</strong></div>
+        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">运转状态:</span><strong style="color:${statusColor}">${safe.statusName}</strong></div>
+        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">管理中心:</span><strong>${safe.manager}</strong></div>
+        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">值班电话:</span><span style="font-family:monospace">${safe.phone}</span></div>
+        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">泵站地址:</span><span style="max-width:140px; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${safe.address}">${safe.address}</span></div>
       </div>
     `
   }
@@ -634,8 +635,8 @@ const showResultPopup = (feature: any) => {
   const contentHtml = `
     <div style="font-family: sans-serif; min-width: 220px; color:${textColor}">
       <h4 style="margin: 0 0 10px 0; border-bottom: 2px solid ${statusColor}; padding-bottom: 6px; font-size: 13.5px; font-weight: 600; display: flex; justify-content: space-between; align-items: center;">
-        <span>${props.name}</span>
-        <span style="font-size: 10px; background:${statusColor}; color:#fff; padding:1px 6px; border-radius: 3px; font-weight: normal;">${props.typeName}</span>
+        <span>${safe.name}</span>
+        <span style="font-size: 10px; background:${statusColor}; color:#fff; padding:1px 6px; border-radius: 3px; font-weight: normal;">${safe.typeName}</span>
       </h4>
       ${detailsHtml}
     </div>
@@ -690,6 +691,7 @@ watch([isLoaded, () => map.value], ([loaded, mapInst]) => {
 }, { immediate: true })
 
 onUnmounted(() => {
+  mapStore.setInteractionMode('idle')
   if (map.value) {
     unregisterMapEvents()
     clearResults()

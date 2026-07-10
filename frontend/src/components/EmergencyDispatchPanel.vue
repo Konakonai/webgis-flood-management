@@ -9,6 +9,9 @@ import * as turf from '@turf/turf'
 import maplibregl from 'maplibre-gl'
 import { useMap } from '../composables/useMap'
 import { useEmergencyStore, type ResourcePoint, type PumpStation, type AlarmEvent } from '../store/emergency'
+import { useMapStore } from '../store/map'
+import { errorMessage } from '../services/api'
+import { escapeHtml } from '../utils/html'
 
 // 初始化提示工具
 const message = useMessage()
@@ -17,6 +20,8 @@ const notification = useNotification()
 // 初始化地图 Composable 和 应急调度 Store
 const { map, isLoaded } = useMap()
 const store = useEmergencyStore()
+const mapStore = useMapStore()
+const actionLoading = ref(false)
 
 // 过滤筛选与状态字段
 const activeTab = ref('workorders')
@@ -54,6 +59,7 @@ let alarmMarkers: maplibregl.Marker[] = []
 
 // 动画相关变量
 let animationFrameId: number | null = null
+let contextMenuBound = false
 
 // 过滤后的工单列表
 const filteredAlarms = computed(() => {
@@ -62,6 +68,8 @@ const filteredAlarms = computed(() => {
   }
   return store.alarmEvents.filter(e => e.status === statusFilter.value)
 })
+
+const maskPhone = (phone: string) => phone ? `${phone.slice(0, 3)}****${phone.slice(-4)}` : '未提供'
 
 // 计算当前选中工单的详细信息
 const selectedAlarm = computed(() => {
@@ -174,9 +182,9 @@ const drawResourceMarkers = () => {
       .setHTML(`
         <div class="map-popup-card">
           <h4 class="popup-title">📦 防汛物资点</h4>
-          <div class="popup-item"><strong>名称:</strong><span>${res.name}</span></div>
-          <div class="popup-item"><strong>物资储备:</strong><span>${res.details}</span></div>
-          <div class="popup-item"><strong>地址:</strong><span>${res.address}</span></div>
+          <div class="popup-item"><strong>名称:</strong><span>${escapeHtml(res.name)}</span></div>
+          <div class="popup-item"><strong>物资储备:</strong><span>${escapeHtml(res.details)}</span></div>
+          <div class="popup-item"><strong>地址:</strong><span>${escapeHtml(res.address)}</span></div>
           <div class="popup-item"><strong>状态:</strong><span class="badge ${res.status === '充足' ? 'green' : 'red'}">${res.status}</span></div>
         </div>
       `)
@@ -205,10 +213,10 @@ const drawStationMarkers = () => {
       .setHTML(`
         <div class="map-popup-card">
           <h4 class="popup-title">🚒 泵车驻地</h4>
-          <div class="popup-item"><strong>名称:</strong><span>${pump.name}</span></div>
-          <div class="popup-item"><strong>装备车辆:</strong><span>${pump.vehicle}</span></div>
-          <div class="popup-item"><strong>负责人:</strong><span>${pump.contact}</span></div>
-          <div class="popup-item"><strong>地址:</strong><span>${pump.address}</span></div>
+          <div class="popup-item"><strong>名称:</strong><span>${escapeHtml(pump.name)}</span></div>
+          <div class="popup-item"><strong>装备车辆:</strong><span>${escapeHtml(pump.vehicle)}</span></div>
+          <div class="popup-item"><strong>负责人:</strong><span>${escapeHtml(pump.contact)}</span></div>
+          <div class="popup-item"><strong>地址:</strong><span>${escapeHtml(pump.address)}</span></div>
           <div class="popup-item"><strong>状态:</strong><span class="badge ${pump.status === '空闲' ? 'blue' : 'gray'}">${pump.status}</span></div>
         </div>
       `)
@@ -251,9 +259,9 @@ const drawAlarmMarkers = () => {
       .setHTML(`
         <div class="map-popup-card">
           <h4 class="popup-title">⚠️ 警情登记卡</h4>
-          <div class="popup-item"><strong>报警人:</strong><span>${alarm.reporter} (${alarm.phone})</span></div>
+          <div class="popup-item"><strong>报警人:</strong><span>${escapeHtml(alarm.reporter)} (${escapeHtml(maskPhone(alarm.phone))})</span></div>
           <div class="popup-item"><strong>严重程度:</strong><span class="badge ${severityClass}">${severityText}</span></div>
-          <div class="popup-item"><strong>描述:</strong><span>${alarm.description}</span></div>
+          <div class="popup-item"><strong>描述:</strong><span>${escapeHtml(alarm.description)}</span></div>
           <div class="popup-item"><strong>工单状态:</strong><span class="badge status-${alarm.status}">${alarm.status}</span></div>
           <div class="popup-item"><strong>报警时间:</strong><span>${alarm.time}</span></div>
         </div>
@@ -458,6 +466,8 @@ const fitMapToRoute = (coordinates: [number, number][]) => {
 // ==================== 右键地图登记事件 ====================
 
 const handleMapContextMenu = (e: any) => {
+  if (mapStore.interactionMode !== 'idle') return
+  mapStore.setInteractionMode('register-event')
   const { lng, lat } = e.lngLat
   registerForm.value.lng = Number(lng.toFixed(6))
   registerForm.value.lat = Number(lat.toFixed(6))
@@ -469,7 +479,7 @@ const handleMapContextMenu = (e: any) => {
 }
 
 // 提交登记表单
-const handleRegisterSubmit = () => {
+const handleRegisterSubmit = async () => {
   if (!registerForm.value.reporter.trim()) {
     message.error('请输入报警人姓名')
     return
@@ -483,71 +493,88 @@ const handleRegisterSubmit = () => {
     return
   }
   
-  // 在本地状态/Pinia Store中创建新的应急工单
-  const newEvent = store.addAlarmEvent({
-    reporter: registerForm.value.reporter,
-    phone: registerForm.value.phone,
-    description: registerForm.value.description,
-    severity: registerForm.value.severity,
-    lng: registerForm.value.lng,
-    lat: registerForm.value.lat
-  })
-  
-  showRegisterModal.value = false
+  actionLoading.value = true
+  try {
+    const newEvent = await store.addAlarmEvent({
+      reporter: registerForm.value.reporter,
+      phone: registerForm.value.phone,
+      description: registerForm.value.description,
+      severity: registerForm.value.severity,
+      lng: registerForm.value.lng,
+      lat: registerForm.value.lat
+    })
+    showRegisterModal.value = false
   
   // 提示用户并默认选中新工单
-  notification.success({
-    title: '警情登记成功',
-    content: `工单编号 ${newEvent.id}，严重程度：${newEvent.severity === 'high' ? '高' : (newEvent.severity === 'medium' ? '中' : '低')}`,
-    duration: 3500
-  })
+    notification.success({
+      title: '警情登记成功',
+      content: `工单编号 ${newEvent.id}，数据已写入服务器。`,
+      duration: 3500
+    })
   
-  store.selectedAlarmId = newEvent.id
+    store.selectedAlarmId = newEvent.id
   
   // 地图视角定位
-  const mapInst = map.value
-  if (mapInst) {
-    mapInst.easeTo({
-      center: [newEvent.lng, newEvent.lat],
-      zoom: 14,
-      duration: 1000
-    })
+    const mapInst = map.value
+    if (mapInst) {
+      mapInst.easeTo({ center: [newEvent.lng, newEvent.lat], zoom: 14, duration: 1000 })
+    }
+  } catch (error) {
+    message.error(errorMessage(error))
+  } finally {
+    actionLoading.value = false
   }
 }
 
 // ==================== 调度派遣与状态操作 ====================
 
 // 派单
-const handleDispatch = (alarmId: string, pumpId: string) => {
-  store.dispatchPump(alarmId, pumpId)
-  message.success('应急调度指令已发送，防汛抢险泵车已出发！')
+const handleDispatch = async (alarmId: string, pumpId: string) => {
+  actionLoading.value = true
+  try {
+    await store.dispatchPump(alarmId, pumpId)
+    message.success('应急调度指令已写入服务器，泵车已锁定！')
+  } catch (error) {
+    message.error(errorMessage(error))
+  } finally {
+    actionLoading.value = false
+  }
 }
 
 // 智能一键派单（最邻近）
-const handleSmartDispatch = (alarm: AlarmEvent) => {
+const handleSmartDispatch = async (alarm: AlarmEvent) => {
   if (!nearestPumpInfo.value) {
     message.warning('当前无可用泵车驻点')
     return
   }
   const pump = nearestPumpInfo.value.pump
-  store.dispatchPump(alarm.id, pump.id)
-  notification.info({
-    title: '智能派单成功',
-    content: `自动匹配最近驻地：${pump.name}，距离：${nearestPumpInfo.value.distance} km。流光导航路径已规划。`,
-    duration: 4000
-  })
+  await handleDispatch(alarm.id, pump.id)
 }
 
 // 标记抵达现场
-const handleMarkArrival = (alarmId: string) => {
-  store.updateEventStatus(alarmId, '处置中')
-  message.info('已记录抢险队伍抵达现场，开始排水作业！')
+const handleMarkArrival = async (alarmId: string) => {
+  actionLoading.value = true
+  try {
+    await store.markArrived(alarmId)
+    message.info('已在服务器记录抢险队伍抵达现场')
+  } catch (error) {
+    message.error(errorMessage(error))
+  } finally {
+    actionLoading.value = false
+  }
 }
 
 // 标记处置完成
-const handleMarkCompleted = (alarmId: string) => {
-  store.updateEventStatus(alarmId, '已完成')
-  message.success('险情处置完成，泵车驻地车辆已归建！')
+const handleMarkCompleted = async (alarmId: string) => {
+  actionLoading.value = true
+  try {
+    await store.updateEventStatus(alarmId, '已完成')
+    message.success('险情处置完成，服务器已释放泵车资源！')
+  } catch (error) {
+    message.error(errorMessage(error))
+  } finally {
+    actionLoading.value = false
+  }
 }
 
 // 定位资源点
@@ -571,15 +598,18 @@ watch(isLoaded, (loaded) => {
     drawStationMarkers()
     drawAlarmMarkers()
     
-    // 监听地图右键点击，以登记新警情
-    mapInst.on('contextmenu', handleMapContextMenu)
-    
-    // 拦截默认右键菜单
-    mapInst.getCanvas().addEventListener('contextmenu', preventDefaultContext)
+    bindContextMenu(mapInst)
   }
 })
 
 const preventDefaultContext = (e: Event) => e.preventDefault()
+
+const bindContextMenu = (mapInst: maplibregl.Map) => {
+  if (contextMenuBound) return
+  mapInst.on('contextmenu', handleMapContextMenu)
+  mapInst.getCanvas().addEventListener('contextmenu', preventDefaultContext)
+  contextMenuBound = true
+}
 
 // 侦听报警列表和车辆信息变化，实时刷新地图 Markers 颜色状态
 watch(() => store.alarmEvents, () => {
@@ -607,10 +637,13 @@ watch(() => {
   }
 }, { deep: true })
 
-onMounted(() => {
-  // 从 Mock API 获取防汛点和泵车列表
-  store.fetchResources()
-  store.fetchStations()
+onMounted(async () => {
+  try {
+    await store.refresh()
+    store.connectWorkOrderUpdates()
+  } catch (error) {
+    message.error(`业务数据加载失败：${errorMessage(error)}`)
+  }
   
   const mapInst = map.value
   if (isLoaded.value && mapInst) {
@@ -618,16 +651,18 @@ onMounted(() => {
     drawStationMarkers()
     drawAlarmMarkers()
     
-    mapInst.on('contextmenu', handleMapContextMenu)
-    mapInst.getCanvas().addEventListener('contextmenu', preventDefaultContext)
+    bindContextMenu(mapInst)
   }
 })
 
 onUnmounted(() => {
+  store.disconnectWorkOrderUpdates()
+  mapStore.setInteractionMode('idle')
   const mapInst = map.value
   if (mapInst) {
     mapInst.off('contextmenu', handleMapContextMenu)
     mapInst.getCanvas().removeEventListener('contextmenu', preventDefaultContext)
+    contextMenuBound = false
   }
   clearMarkers(resourceMarkers)
   resourceMarkers = []
@@ -637,10 +672,14 @@ onUnmounted(() => {
   alarmMarkers = []
   removeRouteFromMap()
 })
+
+watch(showRegisterModal, (visible) => {
+  if (!visible && mapStore.interactionMode === 'register-event') mapStore.setInteractionMode('idle')
+})
 </script>
 
 <template>
-  <div class="gis-overlay-container">
+  <div id="emergency-dispatch-panel" class="gis-overlay-container">
     <!-- 应急调度主控制面板 -->
     <n-card class="dispatch-panel" :bordered="false" size="small">
       <div class="panel-header">
@@ -678,14 +717,14 @@ onUnmounted(() => {
               >
                 <n-thing>
                   <template #header>
-                    <span class="alarm-reporter">{{ alarm.reporter }} ({{ alarm.phone.substring(0,3) }}****{{ alarm.phone.substring(7) }})</span>
+                    <span class="alarm-reporter">{{ alarm.reporter }} ({{ maskPhone(alarm.phone) }})</span>
                   </template>
                   <template #header-extra>
                     <n-space size="small">
                       <n-tag :type="alarm.severity === 'high' ? 'error' : (alarm.severity === 'medium' ? 'warning' : 'info')" size="small">
                         {{ alarm.severity === 'high' ? '严重高' : (alarm.severity === 'medium' ? '中度' : '轻微') }}
                       </n-tag>
-                      <n-tag :type="alarm.status === '待派单' ? 'error' : (alarm.status === '处置中' ? 'warning' : 'success')" size="small">
+                      <n-tag :type="alarm.status === '待派单' ? 'error' : (alarm.status === '处置中' ? 'warning' : (alarm.status === '已完成' ? 'success' : 'default'))" size="small">
                         {{ alarm.status }}
                       </n-tag>
                     </n-space>
@@ -707,13 +746,14 @@ onUnmounted(() => {
                         <div class="info-meta">直线距离: <strong>{{ nearestPumpInfo.distance }} km</strong></div>
                       </div>
                       <n-space vertical style="width: 100%; margin-top: 10px;">
-                        <n-button type="primary" size="small" block @click="handleSmartDispatch(alarm)">
+                        <n-button type="primary" size="small" block :loading="actionLoading" @click="handleSmartDispatch(alarm)">
                           🚀 智能一键派遣最近泵车
                         </n-button>
                         <n-select 
                           size="small"
                           placeholder="手动选择其他驻地泵车"
-                          :options="store.pumpStations.map(p => ({ label: `${p.name} (${p.status})`, value: p.id }))"
+                          :disabled="actionLoading"
+                          :options="store.pumpStations.filter(p => p.status === '空闲').map(p => ({ label: p.name, value: p.id }))"
                           @update:value="(val) => handleDispatch(alarm.id, val)"
                         />
                       </n-space>
@@ -733,10 +773,10 @@ onUnmounted(() => {
                         <div class="flow-tip">🟢 正在进行实时导航路径规划与粒子流动效果监控</div>
                       </div>
                       <n-space style="margin-top: 10px;" justify="space-between">
-                        <n-button size="small" type="warning" @click="handleMarkArrival(alarm.id)">
-                          📍 抵达现场并抢险
+                        <n-button size="small" type="warning" :disabled="Boolean(alarm.arrivedAt)" :loading="actionLoading" @click="handleMarkArrival(alarm.id)">
+                          {{ alarm.arrivedAt ? '📍 已抵达现场' : '📍 抵达现场并抢险' }}
                         </n-button>
-                        <n-button size="small" type="success" @click="handleMarkCompleted(alarm.id)">
+                        <n-button size="small" type="success" :loading="actionLoading" @click="handleMarkCompleted(alarm.id)">
                           ✅ 险情处置完成
                         </n-button>
                       </n-space>
@@ -828,6 +868,7 @@ onUnmounted(() => {
       title="🚨 新增防汛积水灾情登记" 
       style="width: 420px;" 
       :segmented="{ content: 'soft', footer: 'soft' }"
+      @after-leave="mapStore.setInteractionMode('idle')"
     >
       <n-form :model="registerForm" :rules="rules" ref="formRef" size="medium" label-placement="left" label-width="85">
         <n-form-item label="坐标位置">

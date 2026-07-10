@@ -110,7 +110,7 @@ public class MonitorStationController {
         String contact = (resource.getContactPerson() == null ? "" : resource.getContactPerson())
                 + (resource.getContactPhone() == null ? "" : " (" + resource.getContactPhone() + ")");
         String status = "AVAILABLE".equals(resource.getStatus()) ? "空闲" : "已派发";
-        return new PumpStationView(id, resource.getName(), "pump", resource.getLng(), resource.getLat(),
+        return new PumpStationView(id, resource.getId(), resource.getName(), "pump", resource.getLng(), resource.getLat(),
                 resource.getAddress(), vehicle, contact.trim(), status);
     }
 

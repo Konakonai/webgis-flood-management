@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import {
   NConfigProvider,
   NNotificationProvider,
@@ -7,12 +8,16 @@ import {
 } from 'naive-ui'
 
 import HelperUI from './components/HelperUI.vue'
+import AuthGate from './components/AuthGate.vue'
 import MapContainer from './components/MapContainer.vue'
 import SpatialQueryPanel from './components/SpatialQueryPanel.vue'
 import EmergencyDispatchPanel from './components/EmergencyDispatchPanel.vue'
 import { useTheme } from './composables/useTheme'
+import { useAuthStore } from './store/auth'
 
 const { isDark, naiveTheme } = useTheme()
+const auth = useAuthStore()
+onMounted(() => auth.initialize())
 </script>
 
 <template>
@@ -22,12 +27,13 @@ const { isDark, naiveTheme } = useTheme()
         <n-dialog-provider>
         <!-- 主布局容器，根据全局主题动态绑定类名 -->
         <div class="app-layout" :class="{ 'dark-theme': isDark, 'light-theme': !isDark }">
+          <AuthGate />
           
           <!-- 系统顶栏 -->
-          <HelperUI />
+          <HelperUI v-if="auth.isAuthenticated" />
 
           <!-- 地图区域 + 悬浮控制面板 -->
-          <main class="main-content">
+          <main v-if="auth.isAuthenticated" class="main-content">
             <!-- 底层 WebGIS 地图画布 -->
             <div id="map-container" class="map-viewport">
               <MapContainer />
@@ -37,7 +43,7 @@ const { isDark, naiveTheme } = useTheme()
             <SpatialQueryPanel />
 
             <!-- 右侧面板：应急调度管理（模块五核心组件） -->
-            <EmergencyDispatchPanel />
+            <EmergencyDispatchPanel v-if="auth.canManageWorkOrders" />
           </main>
 
 

@@ -167,6 +167,24 @@ public class WorkOrderServiceImpl extends ServiceImpl<WorkOrderMapper, WorkOrder
 
     @Override
     @Transactional
+    public WorkOrder markArrived(Long id, String actor) {
+        WorkOrder order = baseMapper.lockById(id);
+        if (order == null) throw ApiException.notFound("工单不存在");
+        if (!"PROCESSING".equals(order.getStatus())) {
+            throw ApiException.conflict("仅处置中的工单可以记录抵达");
+        }
+        if (order.getArrivedAt() != null) {
+            return order;
+        }
+        order.setArrivedAt(LocalDateTime.now());
+        updateById(order);
+        recordHistory(id, "PROCESSING", "PROCESSING", actor, "应急资源抵达现场");
+        publishAfterCommit(order);
+        return order;
+    }
+
+    @Override
+    @Transactional
     public void deleteOrder(Long id) {
         WorkOrder order = baseMapper.lockById(id);
         if (order == null) throw ApiException.notFound("工单不存在");

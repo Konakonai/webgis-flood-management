@@ -175,6 +175,7 @@ Authorization: Bearer <jwt>
 [
   {
     "id": "P002",
+    "resourceId": 2,
     "name": "云龙区泵车站",
     "type": "pump",
     "lng": 117.2266,
@@ -187,7 +188,7 @@ Authorization: Bearer <jwt>
 ]
 ```
 
-派单接口的 `resourceId` 需要数据库数值 ID。业务前端应从分页资源接口取得数值 ID，不能直接提交 `P002` 之类展示 ID。
+`id` 是地图展示 ID，`resourceId` 是派单使用的数据库数值 ID，不能把 `P002` 之类展示 ID 提交给写接口。
 
 ### 3.3 空间联合查询
 
@@ -423,6 +424,7 @@ Authorization: Bearer <jwt>
 | `POST /api/work-orders` | OPERATOR+ | 创建内部工单 |
 | `PUT /api/work-orders/{id}` | OPERATOR+ | 更新标题、描述、优先级、结果 |
 | `POST /api/work-orders/{id}/dispatch` | OPERATOR+ | 派发泵车或救援队 |
+| `POST /api/work-orders/{id}/arrive` | OPERATOR+ | 为处置中工单记录资源抵达时间；重复调用幂等 |
 | `PATCH /api/work-orders/{id}/status` | OPERATOR+ | 推荐的状态迁移接口 |
 | `PUT /api/work-orders/{id}/status?status=...` | OPERATOR+ | 保留的旧兼容接口 |
 | `DELETE /api/work-orders/{id}` | OPERATOR+ | 行锁后仅删除 `PENDING/REJECTED`；同时清理附件文件 |
@@ -462,7 +464,15 @@ Authorization: Bearer <jwt>
 - 成功后工单进入 `PROCESSING`，资源进入 `DISPATCHED`；
 - 并发或重复派发返回 409。
 
-### 7.3 状态迁移
+### 7.3 抵达现场
+
+`POST /api/work-orders/{id}/arrive`
+
+- 工单必须为 `PROCESSING`，否则返回 409；
+- 首次调用写入 `arrivedAt` 和状态历史；
+- 已记录抵达的工单再次调用直接返回当前工单。
+
+### 7.4 状态迁移
 
 推荐接口：
 
@@ -607,5 +617,5 @@ OSRM 使用标准响应，不使用 `Result<T>` 包装。
 2. `POST /api/spatial-query` 保留原始 FeatureCollection，前端直接读取 `features`。
 3. `PUT /api/work-orders/{id}/status` 保留旧查询参数形式；新代码使用 PATCH JSON。
 4. `GET /api/reports/nearby` 保留原始 FeatureCollection，便于直接作为地图 Source。
-5. 兼容展示 ID 与数据库操作 ID 不同；派单等写操作必须使用数值 ID。
-6. 当前 `frontend/src/main.ts` 无条件加载 Mock，`frontend/src/store/emergency.ts` 和 `MobileReportApp.vue` 仍使用本地状态。后端契约已就绪，但真实页面联调需要按 `docs/前端修改建议.md` 调整前端。
+5. 展示 ID 与数据库操作 ID 不同；泵车兼容数组通过 `resourceId` 同时提供派单所需数值 ID。
+6. 生产前端已接入 JWT、真实工单、OSRM、公众上报和 STOMP；Mock 仅在开发模式显式设置 `VITE_USE_MOCK=true` 时加载。

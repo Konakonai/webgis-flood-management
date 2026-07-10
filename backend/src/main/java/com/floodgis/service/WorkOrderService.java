@@ -19,6 +19,7 @@ public interface WorkOrderService extends IService<WorkOrder> {
     WorkOrder updateOrder(Long id, WorkOrderUpdateRequest request);
     WorkOrder transition(Long id, WorkOrderStatusRequest request, String actor);
     WorkOrder dispatch(Long id, DispatchRequest request, String actor);
+    WorkOrder markArrived(Long id, String actor);
     void deleteOrder(Long id);
     Map<String, Object> track(String trackingCode);
     List<WorkOrder> nearby(double lng, double lat, int radiusMeters);

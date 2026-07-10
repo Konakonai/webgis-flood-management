@@ -15,6 +15,7 @@ export interface ResourcePoint {
 
 export interface PumpStation {
   id: string
+  resourceId: number
   name: string
   type: 'pump'
   lng: number
@@ -61,6 +62,7 @@ export const mockResources: ResourcePoint[] = [
 export const mockStations: PumpStation[] = [
   {
     id: 'P001',
+    resourceId: 1,
     name: '金山桥防汛大功率泵车驻地',
     type: 'pump',
     lng: 117.252,
@@ -72,6 +74,7 @@ export const mockStations: PumpStation[] = [
   },
   {
     id: 'P002',
+    resourceId: 2,
     name: '矿大南湖防汛泵车驻车场',
     type: 'pump',
     lng: 117.152,

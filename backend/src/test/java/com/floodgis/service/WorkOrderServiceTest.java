@@ -104,6 +104,30 @@ class WorkOrderServiceTest {
     }
 
     @Test
+    void markArrivedRecordsTimestampForProcessingOrder() {
+        WorkOrder order = order(1L, "PROCESSING");
+        when(orderMapper.lockById(1L)).thenReturn(order);
+
+        WorkOrder result = service.markArrived(1L, "operator");
+
+        assertNotNull(result.getArrivedAt());
+        verify(orderMapper).updateById(order);
+        verify(historyMapper).insert(argThat(history ->
+                "应急资源抵达现场".equals(history.getNote())));
+    }
+
+    @Test
+    void markArrivedRejectsPendingOrder() {
+        when(orderMapper.lockById(1L)).thenReturn(order(1L, "PENDING"));
+
+        ApiException error = assertThrows(ApiException.class,
+                () -> service.markArrived(1L, "operator"));
+
+        assertEquals(409, error.getStatus().value());
+        verify(orderMapper, never()).updateById(any());
+    }
+
+    @Test
     void stateMachineRejectsSkippingProcessing() {
         when(orderMapper.lockById(1L)).thenReturn(order(1L, "PENDING"));
         WorkOrderStatusRequest request = new WorkOrderStatusRequest();

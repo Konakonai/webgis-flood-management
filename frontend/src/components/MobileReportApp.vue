@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import {
   NButton,
   NConfigProvider,
@@ -17,14 +17,18 @@ import type { Feature, FeatureCollection, Point } from 'geojson'
 import MapContainer from './MapContainer.vue'
 import { useMapStore } from '../store/map'
 import { useTheme } from '../composables/useTheme'
+import { apiRequest, errorMessage } from '../services/api'
+import { escapeHtml } from '../utils/html'
 
 interface MobileReport {
   id: string
+  trackingCode: string
   lng: number
   lat: number
   depth: number
   description: string
-  image?: string
+  images: string[]
+  status: string
   createdAt: string
 }
 
@@ -34,6 +38,7 @@ type ReportFeature = Feature<Point, {
   description: string
   createdAt: string
   hasImage: boolean
+  status: string
 }>
 
 const STORAGE_KEY = 'mobile-water-reports'
@@ -55,7 +60,9 @@ const reportLat = ref(34.2610)
 const reportDepth = ref(20)
 const reportDescription = ref('')
 const imagePreview = ref('')
+const selectedImage = ref<File | null>(null)
 const reports = ref<MobileReport[]>([])
+const trackingQuery = ref('')
 const isLocating = ref(false)
 const isSubmitting = ref(false)
 const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -64,20 +71,19 @@ const reportLngText = computed(() => reportLng.value.toFixed(6))
 const reportLatText = computed(() => reportLat.value.toFixed(6))
 const latestReport = computed(() => reports.value.at(-1))
 
-const escapeHtml = (value: string) => {
-  const div = document.createElement('div')
-  div.textContent = value
-  return div.innerHTML
-}
-
 const saveReports = () => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(reports.value))
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(reports.value.map((item) => item.trackingCode)))
 }
 
-const loadReports = () => {
+const loadReports = async () => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    reports.value = raw ? JSON.parse(raw) : []
+    const stored = raw ? JSON.parse(raw) : []
+    const codes = Array.isArray(stored)
+      ? stored.map((item) => typeof item === 'string' ? item : item?.trackingCode || item?.id).filter(Boolean)
+      : []
+    const tracked = await Promise.allSettled(codes.map((code) => fetchTrackedReport(code)))
+    reports.value = tracked.flatMap((item) => item.status === 'fulfilled' ? [item.value] : [])
   } catch {
     reports.value = []
   }
@@ -95,7 +101,8 @@ const reportFeatures = (): ReportFeature[] => {
       depth: report.depth,
       description: report.description || '现场积水',
       createdAt: report.createdAt,
-      hasImage: Boolean(report.image)
+      hasImage: report.images.length > 0,
+      status: report.status
     }
   }))
 }
@@ -147,8 +154,9 @@ const renderReportLayer = () => {
     const coordinates = (feature.geometry as Point).coordinates.slice() as [number, number]
     const description = escapeHtml(report?.description || '现场积水')
     const time = report ? new Date(report.createdAt).toLocaleString('zh-CN') : ''
-    const image = report?.image
-      ? `<img class="mobile-popup-image" src="${report.image}" alt="上报图片" />`
+    const imageUrl = report?.images?.[0]
+    const image = imageUrl?.startsWith('/uploads/')
+      ? `<img class="mobile-popup-image" src="${escapeHtml(imageUrl)}" alt="上报图片" />`
       : ''
 
     new Popup({ className: 'custom-webgis-popup mobile-report-popup' })
@@ -159,6 +167,7 @@ const renderReportLayer = () => {
           ${image}
           <div class="popup-item"><strong>积水深度:</strong><span>${report?.depth ?? feature.properties?.depth} cm</span></div>
           <div class="popup-item"><strong>现场描述:</strong><span>${description}</span></div>
+          <div class="popup-item"><strong>处理状态:</strong><span>${escapeHtml(report?.status || '')}</span></div>
           <div class="popup-item"><strong>上报时间:</strong><span>${time}</span></div>
         </div>
       `)
@@ -228,28 +237,44 @@ const openImagePicker = () => {
   fileInputRef.value?.click()
 }
 
-const handleImageChange = (event: Event) => {
+const compressImage = async (file: File): Promise<File> => {
+  if (!['image/jpeg', 'image/png'].includes(file.type)) throw new Error('仅支持 PNG 或 JPEG 图片')
+  if (file.size > 15 * 1024 * 1024) throw new Error('原始图片不能超过 15 MB')
+  const bitmap = await createImageBitmap(file)
+  const scale = Math.min(1, 1920 / Math.max(bitmap.width, bitmap.height))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale))
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('浏览器无法处理该图片')
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  bitmap.close()
+  const type = file.type === 'image/png' ? 'image/png' : 'image/jpeg'
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, 0.82))
+  if (!blob || blob.size > 5 * 1024 * 1024) throw new Error('压缩后图片仍超过 5 MB')
+  return new File([blob], file.name, { type, lastModified: file.lastModified })
+}
+
+const handleImageChange = async (event: Event) => {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
 
-  if (!file.type.startsWith('image/')) {
-    message.error('请选择图片文件')
-    return
+  try {
+    selectedImage.value = await compressImage(file)
+    if (imagePreview.value) URL.revokeObjectURL(imagePreview.value)
+    imagePreview.value = URL.createObjectURL(selectedImage.value)
+  } catch (error) {
+    selectedImage.value = null
+    message.error(errorMessage(error))
+    input.value = ''
   }
-
-  const reader = new FileReader()
-  reader.onload = () => {
-    imagePreview.value = String(reader.result || '')
-  }
-  reader.onerror = () => {
-    message.error('图片读取失败')
-  }
-  reader.readAsDataURL(file)
 }
 
 const clearImage = () => {
+  if (imagePreview.value) URL.revokeObjectURL(imagePreview.value)
   imagePreview.value = ''
+  selectedImage.value = null
   if (fileInputRef.value) {
     fileInputRef.value.value = ''
   }
@@ -262,32 +287,77 @@ const submitReport = async () => {
   }
 
   isSubmitting.value = true
-  const report: MobileReport = {
-    id: `MR-${Date.now()}`,
-    lng: reportLng.value,
-    lat: reportLat.value,
-    depth: reportDepth.value,
-    description: reportDescription.value.trim(),
-    image: imagePreview.value || undefined,
-    createdAt: new Date().toISOString()
+  try {
+    const created = await apiRequest<{ trackingCode: string }>('/api/reports', {
+      method: 'POST',
+      body: JSON.stringify({
+        lng: reportLng.value,
+        lat: reportLat.value,
+        depth: reportDepth.value,
+        description: reportDescription.value.trim()
+      })
+    })
+    if (selectedImage.value) {
+      const form = new FormData()
+      form.append('file', selectedImage.value)
+      await apiRequest(`/api/reports/${created.trackingCode}/images`, { method: 'POST', body: form })
+    }
+    const report = await fetchTrackedReport(created.trackingCode)
+    reports.value.push(report)
+    saveReports()
+    renderReportLayer()
+    flyToReportLocation()
+    trackingQuery.value = created.trackingCode
+    reportDescription.value = ''
+    reportDepth.value = 20
+    clearImage()
+    message.success(`上报成功，追踪码：${created.trackingCode}`)
+  } catch (error) {
+    message.error(errorMessage(error))
+  } finally {
+    isSubmitting.value = false
   }
+}
 
-  reports.value.push(report)
-  saveReports()
-  renderReportLayer()
-  flyToReportLocation()
+const fetchTrackedReport = async (trackingCode: string): Promise<MobileReport> => {
+  const data = await apiRequest<any>(`/api/reports/track/${encodeURIComponent(trackingCode.trim().toUpperCase())}`)
+  return {
+    id: data.trackingCode,
+    trackingCode: data.trackingCode,
+    lng: data.lng,
+    lat: data.lat,
+    depth: data.depth || 0,
+    description: data.description || '',
+    images: Array.isArray(data.images) ? data.images : [],
+    status: data.status,
+    createdAt: data.createdAt
+  }
+}
 
-  await nextTick()
-  reportDescription.value = ''
-  reportDepth.value = 20
-  clearImage()
-  isSubmitting.value = false
-  message.success('上报成功，已在地图上标记')
+const trackReport = async () => {
+  if (!trackingQuery.value.trim()) return
+  try {
+    const report = await fetchTrackedReport(trackingQuery.value)
+    const index = reports.value.findIndex((item) => item.trackingCode === report.trackingCode)
+    if (index >= 0) reports.value[index] = report
+    else reports.value.push(report)
+    saveReports()
+    renderReportLayer()
+    reportLng.value = report.lng
+    reportLat.value = report.lat
+    flyToReportLocation()
+    message.success(`当前状态：${report.status}`)
+  } catch (error) {
+    message.error(errorMessage(error))
+  }
 }
 
 onMounted(() => {
-  loadReports()
-  renderReportLayer()
+  void loadReports().then(renderReportLayer)
+})
+
+onUnmounted(() => {
+  if (imagePreview.value) URL.revokeObjectURL(imagePreview.value)
 })
 
 watch(
@@ -322,7 +392,7 @@ watch(reports, saveReports, { deep: true })
               <h1>现场情况</h1>
             </div>
             <div v-if="latestReport" class="local-count">
-              已保存 {{ reports.length }} 条
+              已同步 {{ reports.length }} 条
             </div>
           </header>
 
@@ -369,6 +439,11 @@ watch(reports, saveReports, { deep: true })
             />
           </label>
 
+          <div class="tracking-row">
+            <n-input v-model:value="trackingQuery" placeholder="输入追踪码查询进度" @keyup.enter="trackReport" />
+            <n-button secondary @click="trackReport">查询</n-button>
+          </div>
+
           <label class="form-field">
             <span>现场描述</span>
             <n-input
@@ -384,7 +459,7 @@ watch(reports, saveReports, { deep: true })
               ref="fileInputRef"
               class="native-file-input"
               type="file"
-              accept="image/*"
+              accept="image/png,image/jpeg"
               capture="environment"
               @change="handleImageChange"
             />
@@ -526,6 +601,12 @@ watch(reports, saveReports, { deep: true })
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.tracking-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
 }
 
 .field-card {
