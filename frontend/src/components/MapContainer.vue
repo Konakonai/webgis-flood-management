@@ -4,7 +4,7 @@ import { Map, Popup, NavigationControl } from 'maplibre-gl'
 import { useMapStore } from '../store/map'
 import { useTheme } from '../composables/useTheme'
 import { useMap } from '../composables/useMap'
-import { xuzhouBoundary, pipeNetwork, waterStations } from '../data/simulatedBaseLayers'
+import { xuzhouBoundary, waterStations } from '../data/simulatedBaseLayers'
 import { escapeHtml } from '../utils/html'
 
 const props = withDefaults(defineProps<{
@@ -113,35 +113,7 @@ onMounted(() => {
         ]
       })
 
-      // 2. 注册市政排水管网图层
-      registerLayer('pipe-network', {
-        name: '市政排水管网',
-        type: 'geojson',
-        source: {
-          type: 'geojson',
-          data: pipeNetwork
-        },
-        layers: [
-          {
-            id: 'pipe-line',
-            type: 'line',
-            paint: {
-              // 根据状态渲染不同颜色：超负荷为红色，预警为橙色，正常为绿色
-              'line-color': [
-                'match',
-                ['get', 'status'],
-                '超负荷', '#ff4d4f',
-                '预警', '#faad14',
-                '#52c41a'
-              ],
-              'line-width': 4,
-              'line-opacity': 0.8
-            }
-          }
-        ]
-      })
-
-      // 3. 注册积水与水位监测站图层
+      // 2. 注册积水与水位监测站图层
       registerLayer('water-stations', {
         name: '水位与积水监测站',
         type: 'geojson',
@@ -170,7 +142,7 @@ onMounted(() => {
         ]
       })
 
-      // 4. 绑定交互事件：点击监测点展示气泡弹窗 (Popup)
+      // 3. 绑定交互事件：点击监测点展示气泡弹窗 (Popup)
       mapInstance.on('click', 'station-point', (e) => {
         if (!mapInstance || !e.features || !e.features[0]) return
         const feature = e.features[0]

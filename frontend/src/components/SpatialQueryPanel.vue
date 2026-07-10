@@ -734,12 +734,27 @@ onUnmounted(() => {
         <h2 class="panel-title font-bold">空间分析</h2>
       </div>
       <div class="action-section">
-        <n-button size="tiny" circle secondary @click="toggleMinimize" title="折叠/展开">
+        <n-button
+          size="tiny"
+          circle
+          secondary
+          :title="isMinimized ? '展开空间分析' : '收起空间分析'"
+          :aria-label="isMinimized ? '展开空间分析' : '收起空间分析'"
+          @click="toggleMinimize"
+        >
           <template #icon>
             <n-icon :component="isMinimized ? ChevronDown : ChevronUp" />
           </template>
         </n-button>
-        <n-button size="tiny" circle secondary @click="closePanel" style="margin-left: 6px;" title="关闭">
+        <n-button
+          size="tiny"
+          circle
+          secondary
+          style="margin-left: 6px;"
+          title="隐藏空间分析"
+          aria-label="隐藏空间分析"
+          @click="closePanel"
+        >
           <template #icon><n-icon :component="X" /></template>
         </n-button>
       </div>
@@ -908,15 +923,22 @@ onUnmounted(() => {
   </div>
 
   <!-- 折叠后的入口悬浮球 -->
-  <div v-else class="spatial-query-trigger floating-card" @click="visible = true" title="打开空间查询面板">
+  <button
+    v-else
+    type="button"
+    class="spatial-query-trigger floating-card"
+    title="打开空间分析"
+    @click="visible = true"
+  >
     <n-icon :component="Compass" size="20" />
-    <span class="trigger-text font-bold">空间检索</span>
-  </div>
+    <span class="trigger-text font-bold">打开空间分析</span>
+  </button>
 </template>
 
 <style scoped>
 /* 浮动面板样式 */
 .spatial-query-panel {
+  pointer-events: auto;
   position: absolute;
   top: 80px;
   left: 15px;
@@ -929,6 +951,7 @@ onUnmounted(() => {
 }
 
 .panel-header-row {
+  flex: 0 0 auto;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -956,6 +979,7 @@ onUnmounted(() => {
   overflow-y: auto;
   flex: 1;
   padding-right: 2px;
+  overscroll-behavior: contain;
 }
 
 .section-title {
@@ -1130,6 +1154,7 @@ onUnmounted(() => {
 
 /* 展开触发球样式 */
 .spatial-query-trigger {
+  pointer-events: auto;
   position: absolute;
   top: 80px;
   left: 15px;
@@ -1142,6 +1167,9 @@ onUnmounted(() => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
   border-radius: 6px;
   transition: all 0.25s ease;
+  border: 1px solid var(--border-color, #e2e8f0);
+  color: var(--text-primary, #1f2225);
+  font: inherit;
 }
 
 .spatial-query-trigger:hover {
@@ -1162,10 +1190,17 @@ onUnmounted(() => {
 
 @media (max-width: 980px) {
   .spatial-query-panel {
-    top: 64px;
+    top: auto;
+    bottom: 15px;
     left: 15px;
     width: calc(100vw - 30px);
-    max-height: calc(100% - 79px);
+    max-height: min(56vh, 620px);
+    border-radius: 12px;
+  }
+
+  .spatial-query-trigger {
+    top: auto;
+    bottom: 15px;
   }
 }
 </style>

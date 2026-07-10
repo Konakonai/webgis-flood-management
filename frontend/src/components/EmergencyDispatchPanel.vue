@@ -980,11 +980,13 @@ watch(showRegisterModal, (visible) => {
 
 @media (max-width: 980px) {
   .dispatch-panel {
-    top: 64px;
+    top: auto;
+    bottom: 15px;
     right: 15px;
     width: calc(100vw - 30px);
-    height: calc(100% - 79px);
-    max-height: none;
+    height: min(56vh, 620px);
+    max-height: min(56vh, 620px);
+    border-radius: 12px;
   }
 }
 
