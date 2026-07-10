@@ -25,6 +25,7 @@ dist-ssr
 # Java / Spring Boot
 target/
 !.mvn/wrapper/maven-wrapper.jar
+backend/flood-gis.zip
 .gradle
 build/
 bin/
@@ -32,5 +33,6 @@ bin/
 # Local env files
 .env
 .env.*
+!.env.example
 .env.local
 .env.*.local
