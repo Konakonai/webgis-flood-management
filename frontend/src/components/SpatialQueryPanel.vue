@@ -397,7 +397,17 @@ const handleMapDblClick = (e: maplibregl.MapMouseEvent) => {
 const handleMapContextMenu = (e: maplibregl.MapMouseEvent) => {
   if (drawMode.value !== 'polygon') return
   e.preventDefault()
+
+  // MapLibre 会同步依次调用同一个 contextmenu 事件的全部监听器。
+  // finishPolygonDrawing 会把模式恢复为 idle；若立即释放，灾情登记监听器
+  // 会把同一次右键误判为新的登记操作。保持绘制所有权到当前事件循环结束。
   finishPolygonDrawing()
+  mapStore.setInteractionMode('draw-query')
+  queueMicrotask(() => {
+    if (mapStore.interactionMode === 'draw-query') {
+      mapStore.setInteractionMode('idle')
+    }
+  })
 }
 
 // ----------------------------------------------------
