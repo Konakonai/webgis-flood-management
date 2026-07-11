@@ -1,0 +1,15 @@
+.git
+.gitignore
+.idea
+.vscode
+**/.DS_Store
+**/node_modules
+**/dist
+**/target
+**/*.log
+backend/flood-gis.zip
+docs
+deploy/osrm-data
+.env
+.env.*
+!.env.example

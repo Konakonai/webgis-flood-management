@@ -2,6 +2,9 @@
 import { ref, reactive, watch, onUnmounted } from 'vue'
 import { useMap } from '../composables/useMap'
 import { useTheme } from '../composables/useTheme'
+import { useMapStore } from '../store/map'
+import { errorMessage, rawRequest } from '../services/api'
+import { escapeHtml } from '../utils/html'
 import * as turf from '@turf/turf'
 import maplibregl from 'maplibre-gl'
 import {
@@ -17,7 +20,8 @@ import {
   NListItem,
   NTag,
   NIcon,
-  NSpace
+  NSpace,
+  useMessage
 } from 'naive-ui'
 import {
   Search,
@@ -27,12 +31,15 @@ import {
   Hexagon,
   CheckCircle,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  X
 } from 'lucide-vue-next'
 
 // 使用地图的 useMap 组合式函数
 const { map, isLoaded } = useMap()
 const { currentTheme } = useTheme()
+const mapStore = useMapStore()
+const message = useMessage()
 
 // 面板基础展示与收缩状态
 const visible = ref(true)
@@ -63,6 +70,7 @@ const typeOptions = [
 const searchResults = ref<any[]>([])
 const resultMarkers = ref<any[]>([])
 let activePopup: maplibregl.Popup | null = null
+let registeredMap: maplibregl.Map | null = null
 
 // 框选临时起始经纬度
 let startPoint: [number, number] = [0, 0]
@@ -173,6 +181,7 @@ const initLayers = () => {
 // ----------------------------------------------------
 const disableMapInteractions = () => {
   if (!map.value) return
+  mapStore.setInteractionMode('draw-query')
   map.value.dragPan.disable()
   map.value.doubleClickZoom.disable()
   map.value.boxZoom.disable()
@@ -185,6 +194,7 @@ const restoreMapInteractions = () => {
   map.value.doubleClickZoom.enable()
   map.value.boxZoom.enable()
   map.value.getCanvas().style.cursor = ''
+  if (mapStore.interactionMode === 'draw-query') mapStore.setInteractionMode('idle')
 }
 
 // 开始矩形框选模式
@@ -388,7 +398,17 @@ const handleMapDblClick = (e: maplibregl.MapMouseEvent) => {
 const handleMapContextMenu = (e: maplibregl.MapMouseEvent) => {
   if (drawMode.value !== 'polygon') return
   e.preventDefault()
+
+  // MapLibre 会同步依次调用同一个 contextmenu 事件的全部监听器。
+  // finishPolygonDrawing 会把模式恢复为 idle；若立即释放，灾情登记监听器
+  // 会把同一次右键误判为新的登记操作。保持绘制所有权到当前事件循环结束。
   finishPolygonDrawing()
+  mapStore.setInteractionMode('draw-query')
+  queueMicrotask(() => {
+    if (mapStore.interactionMode === 'draw-query') {
+      mapStore.setInteractionMode('idle')
+    }
+  })
 }
 
 // ----------------------------------------------------
@@ -479,25 +499,17 @@ const handleSearch = async () => {
   }
 
   try {
-    const response = await window.fetch('/api/spatial-query', {
+    const data = await rawRequest<{ features?: any[] }>('/api/spatial-query', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
       body: JSON.stringify(queryData)
     })
-
-    if (!response.ok) {
-      throw new Error('网络请求异常')
-    }
-
-    const data = await response.json()
     searchResults.value = data.features || []
 
     // 在地图上为查询结果渲染 Marker 标志
     addResultMarkersToMap()
   } catch (error) {
     console.error('空间检索出错:', error)
+    message.error(errorMessage(error))
   } finally {
     isSearching.value = false
   }
@@ -603,6 +615,7 @@ const showResultPopup = (feature: any) => {
   if (activePopup) activePopup.remove()
 
   const props = feature.properties
+  const safe = Object.fromEntries(Object.entries(props).map(([key, value]) => [key, escapeHtml(value)]))
   const isDark = currentTheme.value === 'dark'
   
   const textColor = isDark ? '#f3f4f6' : '#1f2225'
@@ -612,21 +625,21 @@ const showResultPopup = (feature: any) => {
   if (props.type === 'waterlogging') {
     detailsHtml = `
       <div style="display:flex; flex-direction:column; gap:6px; font-size:12px; line-height:1.5; color:${textColor}">
-        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">积水深度:</span><strong style="color:#d03050">${props.waterDepth}</strong></div>
-        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">当前状态:</span><strong style="color:${statusColor}">${props.statusName}</strong></div>
-        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">责任单位:</span><strong>${props.manager}</strong></div>
-        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">联系电话:</span><span style="font-family:monospace">${props.phone}</span></div>
-        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">详细地址:</span><span style="max-width:140px; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${props.address}">${props.address}</span></div>
+        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">积水深度:</span><strong style="color:#d03050">${safe.waterDepth}</strong></div>
+        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">当前状态:</span><strong style="color:${statusColor}">${safe.statusName}</strong></div>
+        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">责任单位:</span><strong>${safe.manager}</strong></div>
+        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">联系电话:</span><span style="font-family:monospace">${safe.phone}</span></div>
+        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">详细地址:</span><span style="max-width:140px; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${safe.address}">${safe.address}</span></div>
       </div>
     `
   } else if (props.type === 'pump') {
     detailsHtml = `
       <div style="display:flex; flex-direction:column; gap:6px; font-size:12px; line-height:1.5; color:${textColor}">
-        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">排涝能力:</span><strong>${props.capacity}</strong></div>
-        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">运转状态:</span><strong style="color:${statusColor}">${props.statusName}</strong></div>
-        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">管理中心:</span><strong>${props.manager}</strong></div>
-        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">值班电话:</span><span style="font-family:monospace">${props.phone}</span></div>
-        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">泵站地址:</span><span style="max-width:140px; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${props.address}">${props.address}</span></div>
+        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">排涝能力:</span><strong>${safe.capacity}</strong></div>
+        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">运转状态:</span><strong style="color:${statusColor}">${safe.statusName}</strong></div>
+        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">管理中心:</span><strong>${safe.manager}</strong></div>
+        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">值班电话:</span><span style="font-family:monospace">${safe.phone}</span></div>
+        <div style="display:flex; justify-content:space-between;"><span style="color:#8c8c8c">泵站地址:</span><span style="max-width:140px; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${safe.address}">${safe.address}</span></div>
       </div>
     `
   }
@@ -634,8 +647,8 @@ const showResultPopup = (feature: any) => {
   const contentHtml = `
     <div style="font-family: sans-serif; min-width: 220px; color:${textColor}">
       <h4 style="margin: 0 0 10px 0; border-bottom: 2px solid ${statusColor}; padding-bottom: 6px; font-size: 13.5px; font-weight: 600; display: flex; justify-content: space-between; align-items: center;">
-        <span>${props.name}</span>
-        <span style="font-size: 10px; background:${statusColor}; color:#fff; padding:1px 6px; border-radius: 3px; font-weight: normal;">${props.typeName}</span>
+        <span>${safe.name}</span>
+        <span style="font-size: 10px; background:${statusColor}; color:#fff; padding:1px 6px; border-radius: 3px; font-weight: normal;">${safe.typeName}</span>
       </h4>
       ${detailsHtml}
     </div>
@@ -676,20 +689,17 @@ const unregisterMapEvents = () => {
 }
 
 watch([isLoaded, () => map.value], ([loaded, mapInst]) => {
-  if (loaded && mapInst) {
-    if (mapInst.loaded()) {
-      initLayers()
-      registerMapEvents()
-    } else {
-      mapInst.on('load', () => {
-        initLayers()
-        registerMapEvents()
-      })
-    }
-  }
+  if (!loaded || !mapInst || registeredMap === mapInst) return
+
+  // isMapLoaded 只会在 MapLibre 的 load 回调内置为 true。此时样式已经可用，
+  // 若再等待下一次 load 会错过唯一一次加载事件，导致所有绘图事件都未注册。
+  initLayers()
+  registerMapEvents()
+  registeredMap = mapInst
 }, { immediate: true })
 
 onUnmounted(() => {
+  mapStore.setInteractionMode('idle')
   if (map.value) {
     unregisterMapEvents()
     clearResults()
@@ -710,6 +720,7 @@ onUnmounted(() => {
       if (map.value!.getSource(src)) map.value!.removeSource(src)
     })
   }
+  registeredMap = null
 })
 </script>
 
@@ -720,16 +731,31 @@ onUnmounted(() => {
     <div class="panel-header-row">
       <div class="title-section">
         <n-icon :component="Compass" size="18" />
-        <span class="panel-title font-bold">空间查询与检索</span>
+        <h2 class="panel-title font-bold">空间分析</h2>
       </div>
       <div class="action-section">
-        <n-button size="tiny" circle secondary @click="toggleMinimize" title="折叠/展开">
+        <n-button
+          size="tiny"
+          circle
+          secondary
+          :title="isMinimized ? '展开空间分析' : '收起空间分析'"
+          :aria-label="isMinimized ? '展开空间分析' : '收起空间分析'"
+          @click="toggleMinimize"
+        >
           <template #icon>
             <n-icon :component="isMinimized ? ChevronDown : ChevronUp" />
           </template>
         </n-button>
-        <n-button size="tiny" circle secondary @click="closePanel" style="margin-left: 6px;" title="关闭">
-          ✕
+        <n-button
+          size="tiny"
+          circle
+          secondary
+          style="margin-left: 6px;"
+          title="隐藏空间分析"
+          aria-label="隐藏空间分析"
+          @click="closePanel"
+        >
+          <template #icon><n-icon :component="X" /></template>
         </n-button>
       </div>
     </div>
@@ -897,15 +923,22 @@ onUnmounted(() => {
   </div>
 
   <!-- 折叠后的入口悬浮球 -->
-  <div v-else class="spatial-query-trigger floating-card" @click="visible = true" title="打开空间查询面板">
+  <button
+    v-else
+    type="button"
+    class="spatial-query-trigger floating-card"
+    title="打开空间分析"
+    @click="visible = true"
+  >
     <n-icon :component="Compass" size="20" />
-    <span class="trigger-text font-bold">空间检索</span>
-  </div>
+    <span class="trigger-text font-bold">打开空间分析</span>
+  </button>
 </template>
 
 <style scoped>
 /* 浮动面板样式 */
 .spatial-query-panel {
+  pointer-events: auto;
   position: absolute;
   top: 80px;
   left: 15px;
@@ -918,6 +951,7 @@ onUnmounted(() => {
 }
 
 .panel-header-row {
+  flex: 0 0 auto;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -933,6 +967,7 @@ onUnmounted(() => {
 }
 
 .panel-title {
+  margin: 0;
   font-size: 14px;
   color: var(--text-primary, #1f2225);
 }
@@ -944,6 +979,7 @@ onUnmounted(() => {
   overflow-y: auto;
   flex: 1;
   padding-right: 2px;
+  overscroll-behavior: contain;
 }
 
 .section-title {
@@ -1118,6 +1154,7 @@ onUnmounted(() => {
 
 /* 展开触发球样式 */
 .spatial-query-trigger {
+  pointer-events: auto;
   position: absolute;
   top: 80px;
   left: 15px;
@@ -1130,6 +1167,9 @@ onUnmounted(() => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
   border-radius: 6px;
   transition: all 0.25s ease;
+  border: 1px solid var(--border-color, #e2e8f0);
+  color: var(--text-primary, #1f2225);
+  font: inherit;
 }
 
 .spatial-query-trigger:hover {
@@ -1150,7 +1190,17 @@ onUnmounted(() => {
 
 @media (max-width: 980px) {
   .spatial-query-panel {
-    width: min(330px, calc(100vw - 30px));
+    top: auto;
+    bottom: 15px;
+    left: 15px;
+    width: calc(100vw - 30px);
+    max-height: min(56vh, 620px);
+    border-radius: 12px;
+  }
+
+  .spatial-query-trigger {
+    top: auto;
+    bottom: 15px;
   }
 }
 </style>

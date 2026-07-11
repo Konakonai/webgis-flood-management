@@ -1,9 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { CircleHelp, Maximize2, Minimize2, Moon, Sun, Waves } from 'lucide-vue-next'
 import { useTheme } from '../composables/useTheme'
+import { useAuthStore } from '../store/auth'
 
 // 获取全局主题状态与切换函数
 const { isDark, toggleTheme } = useTheme()
+const auth = useAuthStore()
+const emit = defineEmits<{
+  guidePanel: [panel: 'spatial' | 'dispatch']
+}>()
 
 // 全屏状态控制
 const isFullscreen = ref(false)
@@ -40,14 +46,14 @@ const guideSteps: GuideStep[] = [
   },
   {
     target: '#spatial-query-panel',
-    title: '空间查询检索',
-    content: '提供多维度的空间查询工具。输入地址可快速进行本地搜索，或滑动滑块调整缓冲区半径，检索周边特定的排涝泵站与抢险物资储备点。',
+    title: '空间分析',
+    content: '绘制框选或多边形范围，结合缓冲区半径检索周边排涝泵站和抢险物资点。',
     placement: 'right'
   },
   {
-    target: '#emergency-dispatch-panel',
-    title: '应急调度管理',
-    content: '实时监测内涝警情及排涝工单。您可以在此指派抢险分队前往低洼易涝区，实时调度水泵和挡水板等防汛资源，协同高效作业。',
+    target: '#emergency-dispatch-card',
+    title: '应急指挥',
+    content: '查看内涝工单、派遣泵车并定位抢险资源，持续跟踪现场处置状态。',
     placement: 'left'
   }
 ]
@@ -61,6 +67,8 @@ const cutout = ref({ x: 0, y: 0, w: 0, h: 0 })
 const tooltipStyle = ref<Record<string, string>>({})
 
 const activeStepData = computed(() => guideSteps[currentStep.value])
+
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
 
 // 更新引导框位置和气泡样式
 const updateGuidePosition = () => {
@@ -84,16 +92,52 @@ const updateGuidePosition = () => {
 
   const rect = el.getBoundingClientRect()
   
-  // 给高亮区域边缘加 8px 的内边距，提升视觉呼吸感
+  // 高亮框始终约束在视口内，避免全屏地图的边框被裁掉。
+  const highlightPadding = 8
+  const viewportPadding = 4
+  const cutoutLeft = clamp(rect.left - highlightPadding, viewportPadding, window.innerWidth - viewportPadding)
+  const cutoutTop = clamp(rect.top - highlightPadding, viewportPadding, window.innerHeight - viewportPadding)
+  const cutoutRight = clamp(rect.right + highlightPadding, viewportPadding, window.innerWidth - viewportPadding)
+  const cutoutBottom = clamp(rect.bottom + highlightPadding, viewportPadding, window.innerHeight - viewportPadding)
   cutout.value = {
-    x: rect.left - 8,
-    y: rect.top - 8,
-    w: rect.width + 16,
-    h: rect.height + 16
+    x: cutoutLeft,
+    y: cutoutTop,
+    w: Math.max(0, cutoutRight - cutoutLeft),
+    h: Math.max(0, cutoutBottom - cutoutTop)
   }
 
-  const tooltipWidth = 340
+  const tooltipWidth = Math.min(360, window.innerWidth - 32)
+  const tooltipHalfHeight = 110
   const margin = 20 // 气泡距离高亮区域的边距
+  const centeredTop = clamp(
+    rect.top + rect.height / 2,
+    tooltipHalfHeight + 16,
+    window.innerHeight - tooltipHalfHeight - 16
+  )
+
+  const sideStyle = (preferredSide: 'left' | 'right') => {
+    const rightLeft = rect.right + margin
+    const leftLeft = rect.left - tooltipWidth - margin
+    const canUseRight = rightLeft + tooltipWidth <= window.innerWidth - 16
+    const canUseLeft = leftLeft >= 16
+    const side = preferredSide === 'right'
+      ? (canUseRight ? 'right' : canUseLeft ? 'left' : 'center')
+      : (canUseLeft ? 'left' : canUseRight ? 'right' : 'center')
+
+    if (side === 'center') {
+      return {
+        left: '50%',
+        top: `${centeredTop}px`,
+        transform: 'translate(-50%, -50%)'
+      }
+    }
+
+    return {
+      left: `${side === 'right' ? rightLeft : leftLeft}px`,
+      top: `${centeredTop}px`,
+      transform: 'translateY(-50%)'
+    }
+  }
 
   if (step.placement === 'center') {
     tooltipStyle.value = {
@@ -107,18 +151,14 @@ const updateGuidePosition = () => {
   } else if (step.placement === 'right') {
     tooltipStyle.value = {
       position: 'fixed',
-      left: `${rect.right + margin}px`,
-      top: `${rect.top + rect.height / 2}px`,
-      transform: 'translateY(-50%)',
+      ...sideStyle('right'),
       width: `${tooltipWidth}px`,
       zIndex: '9999'
     }
   } else if (step.placement === 'left') {
     tooltipStyle.value = {
       position: 'fixed',
-      left: `${rect.left - tooltipWidth - margin}px`,
-      top: `${rect.top + rect.height / 2}px`,
-      transform: 'translateY(-50%)',
+      ...sideStyle('left'),
       width: `${tooltipWidth}px`,
       zIndex: '9999'
     }
@@ -156,6 +196,7 @@ const startGuide = () => {
 const nextStep = () => {
   if (currentStep.value < guideSteps.length - 1) {
     currentStep.value++
+    emit('guidePanel', currentStep.value === 2 ? 'dispatch' : 'spatial')
     nextTick(() => {
       updateGuidePosition()
     })
@@ -168,6 +209,7 @@ const nextStep = () => {
 const prevStep = () => {
   if (currentStep.value > 0) {
     currentStep.value--
+    if (currentStep.value === 1) emit('guidePanel', 'spatial')
     nextTick(() => {
       updateGuidePosition()
     })
@@ -207,14 +249,12 @@ onUnmounted(() => {
   <header class="system-header">
     <!-- 左侧标题与徽章 -->
     <div class="header-left">
-      <div class="logo-wrapper">
-        <svg class="logo-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-        </svg>
+      <div class="logo-wrapper" aria-hidden="true">
+        <Waves class="logo-icon" />
       </div>
       <div class="title-container">
-        <h1 class="header-title">徐州市 WebGIS 内涝监测与应急管理系统</h1>
-        <span class="header-subtitle">XUZHOU WEBGIS FLOOD MONITORING & EMERGENCY MANAGEMENT SYSTEM</span>
+        <h1 class="header-title">徐州市城市内涝应急指挥平台</h1>
+        <span class="header-subtitle">XUZHOU FLOOD RESPONSE · WEBGIS</span>
       </div>
     </div>
 
@@ -223,41 +263,33 @@ onUnmounted(() => {
       <!-- 动态闪烁响应等级徽章 -->
       <div class="alarm-level-tag level-orange">
         <span class="tag-pulse-dot"></span>
-        <span class="tag-text">防汛 II 级应急响应</span>
+        <span class="tag-text">防汛 II 级响应</span>
       </div>
 
       <!-- 新手引导 -->
       <button class="action-btn" @click="startGuide" title="系统操作导览">
-        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/>
-          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-          <line x1="12" y1="17" x2="12.01" y2="17"/>
-        </svg>
+        <CircleHelp class="btn-icon" aria-hidden="true" />
         <span class="btn-text">新手引导</span>
       </button>
 
+      <!-- 当前会话：作为头栏正常布局的一部分，避免覆盖相邻功能按钮 -->
+      <div class="session-control" :title="`当前用户：${auth.user?.realName || auth.user?.username}`">
+        <span class="session-user">
+          {{ auth.user?.realName || auth.user?.username }}{{ auth.canManageWorkOrders ? '' : ' · 只读' }}
+        </span>
+        <button class="logout-btn" type="button" @click="auth.logout">退出</button>
+      </div>
+
       <!-- 全屏控制 -->
       <button class="action-btn" @click="toggleFullscreen" :title="isFullscreen ? '退出全屏' : '全屏显示'">
-        <svg v-if="!isFullscreen" class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
-        </svg>
-        <svg v-else class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/>
-        </svg>
+        <component :is="isFullscreen ? Minimize2 : Maximize2" class="btn-icon" aria-hidden="true" />
         <span class="btn-text">{{ isFullscreen ? '退出全屏' : '全屏显示' }}</span>
       </button>
 
       <!-- 主题明暗切换 -->
       <button class="action-btn theme-toggle-btn" @click="toggleTheme" :title="isDark ? '切换到日间模式' : '切换到夜间模式'">
-        <!-- 太阳图标 -->
-        <svg v-if="isDark" class="btn-icon sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="4"/>
-          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
-        </svg>
-        <!-- 月亮图标 -->
-        <svg v-else class="btn-icon moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
-        </svg>
+        <Sun v-if="isDark" class="btn-icon sun-icon" aria-hidden="true" />
+        <Moon v-else class="btn-icon moon-icon" aria-hidden="true" />
         <span class="btn-text">{{ isDark ? '日间模式' : '夜间模式' }}</span>
       </button>
 
@@ -362,26 +394,29 @@ onUnmounted(() => {
 }
 
 .logo-wrapper {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--accent-color) 100%);
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #0f766e 0%, #059669 100%);
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 3px 10px rgba(24, 144, 255, 0.2);
+  box-shadow: 0 6px 16px rgba(5, 150, 105, 0.24);
 }
 
-.logo-svg {
-  width: 20px;
-  height: 20px;
+.logo-icon {
+  width: 23px;
+  height: 23px;
+  stroke-width: 2.2;
 }
 
 .title-container {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .header-title {
@@ -389,17 +424,16 @@ onUnmounted(() => {
   font-weight: 700;
   margin: 0;
   padding: 0;
-  background: linear-gradient(135deg, var(--text-primary) 30%, var(--primary-color) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  letter-spacing: 0.5px;
+  color: var(--text-primary);
+  letter-spacing: 0.2px;
+  white-space: nowrap;
 }
 
 .header-subtitle {
   font-size: 9px;
   font-weight: 600;
   color: var(--text-secondary);
-  letter-spacing: 1.2px;
+  letter-spacing: 1.5px;
 }
 
 .header-right {
@@ -484,6 +518,49 @@ onUnmounted(() => {
   transform: translateY(0);
 }
 
+.session-control {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 7px 0 12px;
+  box-sizing: border-box;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: #f8fafc;
+  color: var(--text-primary);
+  font-size: 13px;
+  white-space: nowrap;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dark-theme .session-control,
+.dark-theme .action-btn {
+  background: var(--bg-card);
+}
+
+.session-user {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logout-btn {
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-left: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.logout-btn:hover {
+  color: var(--primary-color);
+}
+
 .btn-icon {
   width: 15px;
   height: 15px;
@@ -527,7 +604,7 @@ onUnmounted(() => {
 .guide-mask-rect {
   transition: x 0.3s cubic-bezier(0.4, 0, 0.2, 1),
               y 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-              width 0.3 cubic-bezier(0.4, 0, 0.2, 1),
+              width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
               height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -563,6 +640,7 @@ onUnmounted(() => {
   border-radius: 12px;
   box-shadow: var(--shadow);
   padding: 20px;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -693,6 +771,72 @@ onUnmounted(() => {
     width: 36px;
     padding: 0;
     justify-content: center;
+  }
+
+  .session-control {
+    padding-left: 8px;
+  }
+
+  .session-user {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .system-header {
+    min-height: 106px;
+    height: auto;
+    padding: 10px 14px;
+    flex-wrap: wrap;
+    align-content: center;
+    gap: 8px;
+  }
+
+  .header-left,
+  .header-right {
+    width: 100%;
+  }
+
+  .header-left {
+    gap: 10px;
+  }
+
+  .header-title {
+    font-size: 16px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .logo-wrapper {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+    border-radius: 9px;
+  }
+
+  .logo-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .header-right {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .session-control {
+    margin-left: auto;
+  }
+
+  .session-user {
+    display: inline;
+    max-width: 110px;
+  }
+}
+
+@media (max-width: 460px) {
+  .session-user {
+    display: none;
   }
 }
 

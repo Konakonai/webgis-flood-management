@@ -12,13 +12,20 @@ export interface MapLayer {
   layerIds: string[] // One source can have multiple style layers (e.g. line, fill, circle)
 }
 
+export type MapInteractionMode = 'idle' | 'draw-query' | 'register-event'
+
 export const useMapStore = defineStore('map', () => {
   const mapInstance = shallowRef<Map | null>(null)
   const isMapLoaded = ref(false)
   const activeLayers = ref<MapLayer[]>([])
+  const interactionMode = ref<MapInteractionMode>('idle')
 
-  const setMapInstance = (map: Map) => {
+  const setMapInstance = (map: Map | null) => {
     mapInstance.value = map
+  }
+
+  const setInteractionMode = (mode: MapInteractionMode) => {
+    interactionMode.value = mode
   }
 
   const setMapLoaded = (loaded: boolean) => {
@@ -80,7 +87,9 @@ export const useMapStore = defineStore('map', () => {
     mapInstance,
     isMapLoaded,
     activeLayers,
+    interactionMode,
     setMapInstance,
+    setInteractionMode,
     setMapLoaded,
     addLayerToStore,
     removeLayerFromStore,

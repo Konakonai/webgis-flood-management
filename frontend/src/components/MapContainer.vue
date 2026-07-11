@@ -4,7 +4,8 @@ import { Map, Popup, NavigationControl } from 'maplibre-gl'
 import { useMapStore } from '../store/map'
 import { useTheme } from '../composables/useTheme'
 import { useMap } from '../composables/useMap'
-import { xuzhouBoundary, pipeNetwork, waterStations } from '../mock/geojson'
+import { xuzhouBoundary, waterStations } from '../data/simulatedBaseLayers'
+import { escapeHtml } from '../utils/html'
 
 const props = withDefaults(defineProps<{
   showBusinessLayers?: boolean
@@ -112,35 +113,7 @@ onMounted(() => {
         ]
       })
 
-      // 2. 注册市政排水管网图层
-      registerLayer('pipe-network', {
-        name: '市政排水管网',
-        type: 'geojson',
-        source: {
-          type: 'geojson',
-          data: pipeNetwork
-        },
-        layers: [
-          {
-            id: 'pipe-line',
-            type: 'line',
-            paint: {
-              // 根据状态渲染不同颜色：超负荷为红色，预警为橙色，正常为绿色
-              'line-color': [
-                'match',
-                ['get', 'status'],
-                '超负荷', '#ff4d4f',
-                '预警', '#faad14',
-                '#52c41a'
-              ],
-              'line-width': 4,
-              'line-opacity': 0.8
-            }
-          }
-        ]
-      })
-
-      // 3. 注册积水与水位监测站图层
+      // 2. 注册积水与水位监测站图层
       registerLayer('water-stations', {
         name: '水位与积水监测站',
         type: 'geojson',
@@ -169,11 +142,12 @@ onMounted(() => {
         ]
       })
 
-      // 4. 绑定交互事件：点击监测点展示气泡弹窗 (Popup)
+      // 3. 绑定交互事件：点击监测点展示气泡弹窗 (Popup)
       mapInstance.on('click', 'station-point', (e) => {
         if (!mapInstance || !e.features || !e.features[0]) return
         const feature = e.features[0]
         const featureProps = feature.properties
+        const safe = Object.fromEntries(Object.entries(featureProps).map(([key, value]) => [key, escapeHtml(value)]))
         const coordinates = (feature.geometry as any).coordinates.slice()
 
         // 调整经纬度以防在拉伸缩放时偏离
@@ -185,14 +159,14 @@ onMounted(() => {
 
         const htmlContent = `
           <div class="map-popup-card">
-            <div class="popup-title">${featureProps.name}</div>
-            <div class="popup-item"><strong>站点编码:</strong> <span>${featureProps.id}</span></div>
-            <div class="popup-item"><strong>站点类型:</strong> <span>${featureProps.type}</span></div>
-            <div class="popup-item"><strong>当前水位:</strong> <span class="highlight-val" style="color: ${statusColor}">${featureProps.waterLevel}</span></div>
-            <div class="popup-item"><strong>警戒水位:</strong> <span>${featureProps.warningLevel}</span></div>
-            <div class="popup-item"><strong>当前流量:</strong> <span>${featureProps.flowRate}</span></div>
-            <div class="popup-item"><strong>测报状态:</strong> <span class="status-badge" style="background: ${statusColor}22; color: ${statusColor}; border: 1px solid ${statusColor}44;">${featureProps.status}</span></div>
-            <div class="popup-item popup-addr"><strong>详细地址:</strong> <span>${featureProps.address}</span></div>
+            <div class="popup-title">${safe.name}</div>
+            <div class="popup-item"><strong>站点编码:</strong> <span>${safe.id}</span></div>
+            <div class="popup-item"><strong>站点类型:</strong> <span>${safe.type}</span></div>
+            <div class="popup-item"><strong>当前水位:</strong> <span class="highlight-val" style="color: ${statusColor}">${safe.waterLevel}</span></div>
+            <div class="popup-item"><strong>警戒水位:</strong> <span>${safe.warningLevel}</span></div>
+            <div class="popup-item"><strong>当前流量:</strong> <span>${safe.flowRate}</span></div>
+            <div class="popup-item"><strong>测报状态:</strong> <span class="status-badge" style="background: ${statusColor}22; color: ${statusColor}; border: 1px solid ${statusColor}44;">${safe.status}</span></div>
+            <div class="popup-item popup-addr"><strong>详细地址:</strong> <span>${safe.address}</span></div>
           </div>
         `
 
@@ -252,6 +226,7 @@ onUnmounted(() => {
   if (mapInstance) {
     mapInstance.remove()
     mapInstance = null
+    mapStore.setMapInstance(null)
     mapStore.setMapLoaded(false)
   }
 })

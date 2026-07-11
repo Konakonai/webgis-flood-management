@@ -1,0 +1,130 @@
+name: flood-gis
+
+services:
+  postgis:
+    image: docker.io/postgis/postgis:15-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-flood_gis}
+      POSTGRES_USER: ${POSTGRES_USER:-gis}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-floodgis_demo_change_me}
+      TZ: Asia/Shanghai
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - floodgis
+
+  backend:
+    image: flood-gis-backend:local
+    build:
+      context: .
+      dockerfile: deploy/backend.Dockerfile
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgis:5432/${POSTGRES_DB:-flood_gis}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-gis}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-floodgis_demo_change_me}
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "10"
+      SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "2"
+      JWT_SECRET: ${JWT_SECRET:-demo-only-flood-gis-jwt-secret-change-before-any-shared-deployment-2026}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8088,http://127.0.0.1:8088}
+      LOGGING_LEVEL_COM_FLOODGIS: INFO
+      UPLOAD_DIRECTORY: /app/data/uploads
+      UPLOAD_MAX_IMAGE_BYTES: ${UPLOAD_MAX_IMAGE_BYTES:-5242880}
+      UPLOAD_MAX_IMAGE_PIXELS: ${UPLOAD_MAX_IMAGE_PIXELS:-25000000}
+      JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=70.0 -XX:+ExitOnOutOfMemoryError}
+    depends_on:
+      postgis:
+        condition: service_healthy
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${BACKEND_PORT:-8080}:8080"
+    volumes:
+      - uploads_data:/app/data/uploads
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          curl --fail --silent --show-error http://127.0.0.1:8080/actuator/health
+          | grep --quiet '"status":"UP"'
+      interval: 15s
+      timeout: 8s
+      retries: 12
+      start_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - floodgis
+
+  osrm:
+    image: flood-gis-osrm:local
+    build:
+      context: .
+      dockerfile: deploy/osrm.Dockerfile
+    restart: unless-stopped
+    environment:
+      OSRM_DATA_URL: ${OSRM_DATA_URL:-https://download.geofabrik.de/asia/china/jiangsu-latest.osm.pbf}
+      OSRM_DATA_FILE: ${OSRM_DATA_FILE:-jiangsu-latest.osm.pbf}
+      OSRM_PROFILE: ${OSRM_PROFILE:-car}
+      OSRM_THREADS: ${OSRM_THREADS:-2}
+      OSRM_FORCE_REBUILD: ${OSRM_FORCE_REBUILD:-false}
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${OSRM_PORT:-5000}:5000"
+    volumes:
+      - osrm_data:/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          curl --fail --silent --show-error
+          'http://127.0.0.1:5000/nearest/v1/driving/117.1855,34.2815?number=1'
+          >/dev/null
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 45m
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - floodgis
+
+  frontend:
+    image: flood-gis-frontend:local
+    build:
+      context: .
+      dockerfile: deploy/frontend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+      osrm:
+        condition: service_started
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-8088}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --output-document=- http://127.0.0.1:8080/healthz >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - floodgis
+
+networks:
+  floodgis:
+    driver: bridge
+
+volumes:
+  postgis_data:
+  osrm_data:
+  uploads_data:

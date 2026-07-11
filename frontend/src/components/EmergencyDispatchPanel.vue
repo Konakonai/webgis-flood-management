@@ -3,12 +3,27 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { 
   NCard, NTabs, NTabPane, NList, NListItem, NThing, NTag, NButton, 
   NSpace, NForm, NFormItem, NInput, NSelect, NModal, NDivider, 
-  NStatistic, NEmpty, NText, useMessage, useNotification
+  NStatistic, NEmpty, NText, NIcon, useMessage, useNotification
 } from 'naive-ui'
+import {
+  CircleCheck,
+  ClipboardList,
+  Clock3,
+  LocateFixed,
+  MapPin,
+  Package,
+  Route,
+  Truck,
+  Waves,
+  Zap
+} from 'lucide-vue-next'
 import * as turf from '@turf/turf'
 import maplibregl from 'maplibre-gl'
 import { useMap } from '../composables/useMap'
 import { useEmergencyStore, type ResourcePoint, type PumpStation, type AlarmEvent } from '../store/emergency'
+import { useMapStore } from '../store/map'
+import { errorMessage } from '../services/api'
+import { escapeHtml } from '../utils/html'
 
 // 初始化提示工具
 const message = useMessage()
@@ -17,6 +32,8 @@ const notification = useNotification()
 // 初始化地图 Composable 和 应急调度 Store
 const { map, isLoaded } = useMap()
 const store = useEmergencyStore()
+const mapStore = useMapStore()
+const actionLoading = ref(false)
 
 // 过滤筛选与状态字段
 const activeTab = ref('workorders')
@@ -54,6 +71,7 @@ let alarmMarkers: maplibregl.Marker[] = []
 
 // 动画相关变量
 let animationFrameId: number | null = null
+let contextMenuBound = false
 
 // 过滤后的工单列表
 const filteredAlarms = computed(() => {
@@ -62,6 +80,8 @@ const filteredAlarms = computed(() => {
   }
   return store.alarmEvents.filter(e => e.status === statusFilter.value)
 })
+
+const maskPhone = (phone: string) => phone ? `${phone.slice(0, 3)}****${phone.slice(-4)}` : '未提供'
 
 // 计算当前选中工单的详细信息
 const selectedAlarm = computed(() => {
@@ -173,10 +193,10 @@ const drawResourceMarkers = () => {
     const popup = new maplibregl.Popup({ offset: 12 })
       .setHTML(`
         <div class="map-popup-card">
-          <h4 class="popup-title">📦 防汛物资点</h4>
-          <div class="popup-item"><strong>名称:</strong><span>${res.name}</span></div>
-          <div class="popup-item"><strong>物资储备:</strong><span>${res.details}</span></div>
-          <div class="popup-item"><strong>地址:</strong><span>${res.address}</span></div>
+          <h4 class="popup-title">防汛物资点</h4>
+          <div class="popup-item"><strong>名称:</strong><span>${escapeHtml(res.name)}</span></div>
+          <div class="popup-item"><strong>物资储备:</strong><span>${escapeHtml(res.details)}</span></div>
+          <div class="popup-item"><strong>地址:</strong><span>${escapeHtml(res.address)}</span></div>
           <div class="popup-item"><strong>状态:</strong><span class="badge ${res.status === '充足' ? 'green' : 'red'}">${res.status}</span></div>
         </div>
       `)
@@ -204,11 +224,11 @@ const drawStationMarkers = () => {
     const popup = new maplibregl.Popup({ offset: 12 })
       .setHTML(`
         <div class="map-popup-card">
-          <h4 class="popup-title">🚒 泵车驻地</h4>
-          <div class="popup-item"><strong>名称:</strong><span>${pump.name}</span></div>
-          <div class="popup-item"><strong>装备车辆:</strong><span>${pump.vehicle}</span></div>
-          <div class="popup-item"><strong>负责人:</strong><span>${pump.contact}</span></div>
-          <div class="popup-item"><strong>地址:</strong><span>${pump.address}</span></div>
+          <h4 class="popup-title">泵车驻地</h4>
+          <div class="popup-item"><strong>名称:</strong><span>${escapeHtml(pump.name)}</span></div>
+          <div class="popup-item"><strong>装备车辆:</strong><span>${escapeHtml(pump.vehicle)}</span></div>
+          <div class="popup-item"><strong>负责人:</strong><span>${escapeHtml(pump.contact)}</span></div>
+          <div class="popup-item"><strong>地址:</strong><span>${escapeHtml(pump.address)}</span></div>
           <div class="popup-item"><strong>状态:</strong><span class="badge ${pump.status === '空闲' ? 'blue' : 'gray'}">${pump.status}</span></div>
         </div>
       `)
@@ -250,10 +270,10 @@ const drawAlarmMarkers = () => {
     const popup = new maplibregl.Popup({ offset: 15 })
       .setHTML(`
         <div class="map-popup-card">
-          <h4 class="popup-title">⚠️ 警情登记卡</h4>
-          <div class="popup-item"><strong>报警人:</strong><span>${alarm.reporter} (${alarm.phone})</span></div>
+          <h4 class="popup-title">警情登记卡</h4>
+          <div class="popup-item"><strong>报警人:</strong><span>${escapeHtml(alarm.reporter)} (${escapeHtml(maskPhone(alarm.phone))})</span></div>
           <div class="popup-item"><strong>严重程度:</strong><span class="badge ${severityClass}">${severityText}</span></div>
-          <div class="popup-item"><strong>描述:</strong><span>${alarm.description}</span></div>
+          <div class="popup-item"><strong>描述:</strong><span>${escapeHtml(alarm.description)}</span></div>
           <div class="popup-item"><strong>工单状态:</strong><span class="badge status-${alarm.status}">${alarm.status}</span></div>
           <div class="popup-item"><strong>报警时间:</strong><span>${alarm.time}</span></div>
         </div>
@@ -458,6 +478,8 @@ const fitMapToRoute = (coordinates: [number, number][]) => {
 // ==================== 右键地图登记事件 ====================
 
 const handleMapContextMenu = (e: any) => {
+  if (mapStore.interactionMode !== 'idle') return
+  mapStore.setInteractionMode('register-event')
   const { lng, lat } = e.lngLat
   registerForm.value.lng = Number(lng.toFixed(6))
   registerForm.value.lat = Number(lat.toFixed(6))
@@ -469,7 +491,7 @@ const handleMapContextMenu = (e: any) => {
 }
 
 // 提交登记表单
-const handleRegisterSubmit = () => {
+const handleRegisterSubmit = async () => {
   if (!registerForm.value.reporter.trim()) {
     message.error('请输入报警人姓名')
     return
@@ -483,71 +505,88 @@ const handleRegisterSubmit = () => {
     return
   }
   
-  // 在本地状态/Pinia Store中创建新的应急工单
-  const newEvent = store.addAlarmEvent({
-    reporter: registerForm.value.reporter,
-    phone: registerForm.value.phone,
-    description: registerForm.value.description,
-    severity: registerForm.value.severity,
-    lng: registerForm.value.lng,
-    lat: registerForm.value.lat
-  })
-  
-  showRegisterModal.value = false
+  actionLoading.value = true
+  try {
+    const newEvent = await store.addAlarmEvent({
+      reporter: registerForm.value.reporter,
+      phone: registerForm.value.phone,
+      description: registerForm.value.description,
+      severity: registerForm.value.severity,
+      lng: registerForm.value.lng,
+      lat: registerForm.value.lat
+    })
+    showRegisterModal.value = false
   
   // 提示用户并默认选中新工单
-  notification.success({
-    title: '警情登记成功',
-    content: `工单编号 ${newEvent.id}，严重程度：${newEvent.severity === 'high' ? '高' : (newEvent.severity === 'medium' ? '中' : '低')}`,
-    duration: 3500
-  })
+    notification.success({
+      title: '警情登记成功',
+      content: `工单编号 ${newEvent.id}，数据已写入服务器。`,
+      duration: 3500
+    })
   
-  store.selectedAlarmId = newEvent.id
+    store.selectedAlarmId = newEvent.id
   
   // 地图视角定位
-  const mapInst = map.value
-  if (mapInst) {
-    mapInst.easeTo({
-      center: [newEvent.lng, newEvent.lat],
-      zoom: 14,
-      duration: 1000
-    })
+    const mapInst = map.value
+    if (mapInst) {
+      mapInst.easeTo({ center: [newEvent.lng, newEvent.lat], zoom: 14, duration: 1000 })
+    }
+  } catch (error) {
+    message.error(errorMessage(error))
+  } finally {
+    actionLoading.value = false
   }
 }
 
 // ==================== 调度派遣与状态操作 ====================
 
 // 派单
-const handleDispatch = (alarmId: string, pumpId: string) => {
-  store.dispatchPump(alarmId, pumpId)
-  message.success('应急调度指令已发送，防汛抢险泵车已出发！')
+const handleDispatch = async (alarmId: string, pumpId: string) => {
+  actionLoading.value = true
+  try {
+    await store.dispatchPump(alarmId, pumpId)
+    message.success('应急调度指令已写入服务器，泵车已锁定！')
+  } catch (error) {
+    message.error(errorMessage(error))
+  } finally {
+    actionLoading.value = false
+  }
 }
 
 // 智能一键派单（最邻近）
-const handleSmartDispatch = (alarm: AlarmEvent) => {
+const handleSmartDispatch = async (alarm: AlarmEvent) => {
   if (!nearestPumpInfo.value) {
     message.warning('当前无可用泵车驻点')
     return
   }
   const pump = nearestPumpInfo.value.pump
-  store.dispatchPump(alarm.id, pump.id)
-  notification.info({
-    title: '智能派单成功',
-    content: `自动匹配最近驻地：${pump.name}，距离：${nearestPumpInfo.value.distance} km。流光导航路径已规划。`,
-    duration: 4000
-  })
+  await handleDispatch(alarm.id, pump.id)
 }
 
 // 标记抵达现场
-const handleMarkArrival = (alarmId: string) => {
-  store.updateEventStatus(alarmId, '处置中')
-  message.info('已记录抢险队伍抵达现场，开始排水作业！')
+const handleMarkArrival = async (alarmId: string) => {
+  actionLoading.value = true
+  try {
+    await store.markArrived(alarmId)
+    message.info('已在服务器记录抢险队伍抵达现场')
+  } catch (error) {
+    message.error(errorMessage(error))
+  } finally {
+    actionLoading.value = false
+  }
 }
 
 // 标记处置完成
-const handleMarkCompleted = (alarmId: string) => {
-  store.updateEventStatus(alarmId, '已完成')
-  message.success('险情处置完成，泵车驻地车辆已归建！')
+const handleMarkCompleted = async (alarmId: string) => {
+  actionLoading.value = true
+  try {
+    await store.updateEventStatus(alarmId, '已完成')
+    message.success('险情处置完成，服务器已释放泵车资源！')
+  } catch (error) {
+    message.error(errorMessage(error))
+  } finally {
+    actionLoading.value = false
+  }
 }
 
 // 定位资源点
@@ -571,15 +610,18 @@ watch(isLoaded, (loaded) => {
     drawStationMarkers()
     drawAlarmMarkers()
     
-    // 监听地图右键点击，以登记新警情
-    mapInst.on('contextmenu', handleMapContextMenu)
-    
-    // 拦截默认右键菜单
-    mapInst.getCanvas().addEventListener('contextmenu', preventDefaultContext)
+    bindContextMenu(mapInst)
   }
 })
 
 const preventDefaultContext = (e: Event) => e.preventDefault()
+
+const bindContextMenu = (mapInst: maplibregl.Map) => {
+  if (contextMenuBound) return
+  mapInst.on('contextmenu', handleMapContextMenu)
+  mapInst.getCanvas().addEventListener('contextmenu', preventDefaultContext)
+  contextMenuBound = true
+}
 
 // 侦听报警列表和车辆信息变化，实时刷新地图 Markers 颜色状态
 watch(() => store.alarmEvents, () => {
@@ -607,10 +649,13 @@ watch(() => {
   }
 }, { deep: true })
 
-onMounted(() => {
-  // 从 Mock API 获取防汛点和泵车列表
-  store.fetchResources()
-  store.fetchStations()
+onMounted(async () => {
+  try {
+    await store.refresh()
+    store.connectWorkOrderUpdates()
+  } catch (error) {
+    message.error(`业务数据加载失败：${errorMessage(error)}`)
+  }
   
   const mapInst = map.value
   if (isLoaded.value && mapInst) {
@@ -618,16 +663,18 @@ onMounted(() => {
     drawStationMarkers()
     drawAlarmMarkers()
     
-    mapInst.on('contextmenu', handleMapContextMenu)
-    mapInst.getCanvas().addEventListener('contextmenu', preventDefaultContext)
+    bindContextMenu(mapInst)
   }
 })
 
 onUnmounted(() => {
+  store.disconnectWorkOrderUpdates()
+  mapStore.setInteractionMode('idle')
   const mapInst = map.value
   if (mapInst) {
     mapInst.off('contextmenu', handleMapContextMenu)
     mapInst.getCanvas().removeEventListener('contextmenu', preventDefaultContext)
+    contextMenuBound = false
   }
   clearMarkers(resourceMarkers)
   resourceMarkers = []
@@ -637,21 +684,25 @@ onUnmounted(() => {
   alarmMarkers = []
   removeRouteFromMap()
 })
+
+watch(showRegisterModal, (visible) => {
+  if (!visible && mapStore.interactionMode === 'register-event') mapStore.setInteractionMode('idle')
+})
 </script>
 
 <template>
-  <div class="gis-overlay-container">
+  <div id="emergency-dispatch-panel" class="gis-overlay-container">
     <!-- 应急调度主控制面板 -->
-    <n-card class="dispatch-panel" :bordered="false" size="small">
+    <n-card id="emergency-dispatch-card" class="dispatch-panel" :bordered="false" size="small">
       <div class="panel-header">
-        <div class="title">🌊 应急调度与资源管理</div>
-        <div class="subtitle">Flood Dispatch & Resource Management</div>
+        <h2 class="title panel-title-row"><n-icon :component="Waves" size="18" />应急指挥</h2>
       </div>
       
       <n-tabs v-model:value="activeTab" justify-content="space-evenly" type="line" animated class="tabs-container">
         <!-- 工单管理 Tab -->
-        <n-tab-pane name="workorders" tab="📝 工单管理">
-          <div class="tab-scroll-box">
+        <n-tab-pane name="workorders">
+          <template #tab><span class="tab-label"><n-icon :component="ClipboardList" size="15" />工单管理</span></template>
+          <div class="tab-scroll-box" tabindex="0" aria-label="工单列表">
             <!-- 状态过滤 -->
             <div class="filter-wrapper">
               <n-space size="small">
@@ -674,24 +725,27 @@ onUnmounted(() => {
                 v-for="alarm in filteredAlarms" 
                 :key="alarm.id" 
                 :class="{ 'is-selected': store.selectedAlarmId === alarm.id }"
+                tabindex="0"
+                role="button"
                 @click="store.selectedAlarmId = alarm.id"
+                @keydown.enter.space.prevent="store.selectedAlarmId = alarm.id"
               >
                 <n-thing>
                   <template #header>
-                    <span class="alarm-reporter">{{ alarm.reporter }} ({{ alarm.phone.substring(0,3) }}****{{ alarm.phone.substring(7) }})</span>
+                    <span class="alarm-reporter">{{ alarm.reporter }} ({{ maskPhone(alarm.phone) }})</span>
                   </template>
                   <template #header-extra>
                     <n-space size="small">
                       <n-tag :type="alarm.severity === 'high' ? 'error' : (alarm.severity === 'medium' ? 'warning' : 'info')" size="small">
-                        {{ alarm.severity === 'high' ? '严重高' : (alarm.severity === 'medium' ? '中度' : '轻微') }}
+                        {{ alarm.severity === 'high' ? '严重' : (alarm.severity === 'medium' ? '中度' : '轻微') }}
                       </n-tag>
-                      <n-tag :type="alarm.status === '待派单' ? 'error' : (alarm.status === '处置中' ? 'warning' : 'success')" size="small">
+                      <n-tag :type="alarm.status === '待派单' ? 'error' : (alarm.status === '处置中' ? 'warning' : (alarm.status === '已完成' ? 'success' : 'default'))" size="small">
                         {{ alarm.status }}
                       </n-tag>
                     </n-space>
                   </template>
                   <template #description>
-                    <div class="alarm-time">🕒 登记时间: {{ alarm.time }}</div>
+                    <div class="alarm-time"><n-icon :component="Clock3" size="12" />登记时间: {{ alarm.time }}</div>
                     <div class="alarm-desc">{{ alarm.description }}</div>
                   </template>
 
@@ -702,18 +756,20 @@ onUnmounted(() => {
                     <!-- 待派单状态：智能派车 -->
                     <div v-if="alarm.status === '待派单'" class="dispatch-action-box">
                       <div class="nearest-info" v-if="nearestPumpInfo">
-                        <div class="info-label">⚡ 智能匹配最近空闲驻地:</div>
+                        <div class="info-label inline-icon-label"><n-icon :component="Zap" size="14" />智能匹配最近空闲驻地</div>
                         <div class="info-value">{{ nearestPumpInfo.pump.name }}</div>
                         <div class="info-meta">直线距离: <strong>{{ nearestPumpInfo.distance }} km</strong></div>
                       </div>
                       <n-space vertical style="width: 100%; margin-top: 10px;">
-                        <n-button type="primary" size="small" block @click="handleSmartDispatch(alarm)">
-                          🚀 智能一键派遣最近泵车
+                        <n-button type="primary" size="small" block :loading="actionLoading" @click="handleSmartDispatch(alarm)">
+                          <template #icon><n-icon :component="Route" /></template>
+                          智能派遣最近泵车
                         </n-button>
                         <n-select 
                           size="small"
                           placeholder="手动选择其他驻地泵车"
-                          :options="store.pumpStations.map(p => ({ label: `${p.name} (${p.status})`, value: p.id }))"
+                          :disabled="actionLoading"
+                          :options="store.pumpStations.filter(p => p.status === '空闲').map(p => ({ label: p.name, value: p.id }))"
                           @update:value="(val) => handleDispatch(alarm.id, val)"
                         />
                       </n-space>
@@ -730,21 +786,23 @@ onUnmounted(() => {
                             <template #suffix>分钟</template>
                           </n-statistic>
                         </n-space>
-                        <div class="flow-tip">🟢 正在进行实时导航路径规划与粒子流动效果监控</div>
+                        <div class="flow-tip"><span class="live-status-dot"></span>实时导航与路径状态监控中</div>
                       </div>
                       <n-space style="margin-top: 10px;" justify="space-between">
-                        <n-button size="small" type="warning" @click="handleMarkArrival(alarm.id)">
-                          📍 抵达现场并抢险
+                        <n-button size="small" type="warning" :disabled="Boolean(alarm.arrivedAt)" :loading="actionLoading" @click="handleMarkArrival(alarm.id)">
+                          <template #icon><n-icon :component="MapPin" /></template>
+                          {{ alarm.arrivedAt ? '已抵达现场' : '抵达现场并抢险' }}
                         </n-button>
-                        <n-button size="small" type="success" @click="handleMarkCompleted(alarm.id)">
-                          ✅ 险情处置完成
+                        <n-button size="small" type="success" :loading="actionLoading" @click="handleMarkCompleted(alarm.id)">
+                          <template #icon><n-icon :component="CircleCheck" /></template>
+                          险情处置完成
                         </n-button>
                       </n-space>
                     </div>
 
                     <!-- 已完成状态：展示总结 -->
                     <div v-else-if="alarm.status === '已完成'" class="dispatch-action-box text-center">
-                      <div class="completed-badge">🎉 警情处置圆满完成</div>
+                      <div class="completed-badge"><n-icon :component="CircleCheck" size="16" />警情处置完成</div>
                       <p class="completed-desc">排水队伍已归建，现场积水已退去。</p>
                     </div>
                   </div>
@@ -759,10 +817,11 @@ onUnmounted(() => {
         </n-tab-pane>
 
         <!-- 抢险资源 Tab -->
-        <n-tab-pane name="resources" tab="🚒 抢险资源">
-          <div class="tab-scroll-box">
+        <n-tab-pane name="resources">
+          <template #tab><span class="tab-label"><n-icon :component="Truck" size="15" />抢险资源</span></template>
+          <div class="tab-scroll-box" tabindex="0" aria-label="抢险资源列表">
             <!-- 泵车驻地列表 -->
-            <div class="section-title">🚛 移动排水泵车驻地 ({{ store.pumpStations.length }})</div>
+            <div class="section-title section-heading"><n-icon :component="Truck" size="15" />移动排水泵车驻地 <span class="section-count">{{ store.pumpStations.length }}</span></div>
             <n-list hoverable class="resource-item-list">
               <n-list-item v-for="pump in store.pumpStations" :key="pump.id">
                 <n-thing>
@@ -775,13 +834,14 @@ onUnmounted(() => {
                     </n-tag>
                   </template>
                   <template #description>
-                    <div class="res-desc">🚚 车辆: {{ pump.vehicle }}</div>
-                    <div class="res-desc">📞 联系: {{ pump.contact }}</div>
-                    <div class="res-desc">📍 地址: {{ pump.address }}</div>
+                    <div class="res-desc"><span class="res-label">车辆</span>{{ pump.vehicle }}</div>
+                    <div class="res-desc"><span class="res-label">联系</span>{{ pump.contact }}</div>
+                    <div class="res-desc"><span class="res-label">地址</span>{{ pump.address }}</div>
                   </template>
                   <template #action>
                     <n-button size="tiny" type="info" secondary @click="locateLocation(pump.lng, pump.lat, pump.name)">
-                      📍 定位到该驻地
+                      <template #icon><n-icon :component="LocateFixed" /></template>
+                      定位驻地
                     </n-button>
                   </template>
                 </n-thing>
@@ -791,7 +851,7 @@ onUnmounted(() => {
             <n-divider style="margin: 16px 0" />
 
             <!-- 防汛物资点列表 -->
-            <div class="section-title">📦 应急防汛物资储备库 ({{ store.resourceList.length }})</div>
+            <div class="section-title section-heading"><n-icon :component="Package" size="15" />应急防汛物资储备库 <span class="section-count">{{ store.resourceList.length }}</span></div>
             <n-list hoverable class="resource-item-list">
               <n-list-item v-for="res in store.resourceList" :key="res.id">
                 <n-thing>
@@ -804,12 +864,13 @@ onUnmounted(() => {
                     </n-tag>
                   </template>
                   <template #description>
-                    <div class="res-desc">💼 储备物料: {{ res.details }}</div>
-                    <div class="res-desc">📍 地址: {{ res.address }}</div>
+                    <div class="res-desc"><span class="res-label">物料</span>{{ res.details }}</div>
+                    <div class="res-desc"><span class="res-label">地址</span>{{ res.address }}</div>
                   </template>
                   <template #action>
                     <n-button size="tiny" type="info" secondary @click="locateLocation(res.lng, res.lat, res.name)">
-                      📍 定位到物资点
+                      <template #icon><n-icon :component="LocateFixed" /></template>
+                      定位物资点
                     </n-button>
                   </template>
                 </n-thing>
@@ -825,9 +886,10 @@ onUnmounted(() => {
       v-model:show="showRegisterModal" 
       preset="card" 
       class="register-modal"
-      title="🚨 新增防汛积水灾情登记" 
+      title="新增防汛积水灾情登记"
       style="width: 420px;" 
       :segmented="{ content: 'soft', footer: 'soft' }"
+      @after-leave="mapStore.setInteractionMode('idle')"
     >
       <n-form :model="registerForm" :rules="rules" ref="formRef" size="medium" label-placement="left" label-width="85">
         <n-form-item label="坐标位置">
@@ -853,9 +915,9 @@ onUnmounted(() => {
           <n-select 
             v-model:value="registerForm.severity" 
             :options="[
-              { label: '🔴 严重高 (车辆受淹、无法通行)', value: 'high' },
-              { label: '🟡 中度 (缓慢积水、影响交通)', value: 'medium' },
-              { label: '🔵 轻微 (轻微反水、不影响通行)', value: 'low' }
+              { label: '严重｜车辆受淹、无法通行', value: 'high' },
+              { label: '中度｜缓慢积水、影响交通', value: 'medium' },
+              { label: '轻微｜轻微反水、不影响通行', value: 'low' }
             ]" 
           />
         </n-form-item>
@@ -900,6 +962,15 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
+.dispatch-panel :deep(.n-card-content) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
 @media (min-width: 1800px) {
   .dispatch-panel {
     top: 24px;
@@ -909,7 +980,13 @@ onUnmounted(() => {
 
 @media (max-width: 980px) {
   .dispatch-panel {
-    width: min(360px, calc(100vw - 30px));
+    top: auto;
+    bottom: 15px;
+    right: 15px;
+    width: calc(100vw - 30px);
+    height: min(56vh, 620px);
+    max-height: min(56vh, 620px);
+    border-radius: 12px;
   }
 }
 
@@ -919,21 +996,38 @@ onUnmounted(() => {
 }
 
 .panel-header .title {
+  margin: 0;
   font-size: 17px;
   font-weight: bold;
   color: var(--text-h);
 }
 
-.panel-header .subtitle {
-  font-size: 11px;
-  color: #9ca3af;
-  margin-top: 2px;
+.panel-title-row,
+.tab-label,
+.inline-icon-label,
+.section-heading,
+.completed-badge {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.panel-title-row :deep(.n-icon),
+.section-heading :deep(.n-icon) {
+  color: var(--primary-color);
 }
 
 .tabs-container {
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+:deep(.n-tabs-pane-wrapper) {
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -943,6 +1037,7 @@ onUnmounted(() => {
 
 :deep(.n-tab-pane) {
   height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -950,8 +1045,16 @@ onUnmounted(() => {
 
 .tab-scroll-box {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   padding: 12px;
+}
+
+.tab-scroll-box:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: -2px;
 }
 
 /* 过滤列表部分 */
@@ -994,6 +1097,9 @@ onUnmounted(() => {
   font-size: 11px;
   color: #9ca3af;
   margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .alarm-desc {
@@ -1051,6 +1157,15 @@ onUnmounted(() => {
   align-items: center;
 }
 
+.live-status-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.12);
+}
+
 .completed-badge {
   font-size: 13px;
   font-weight: bold;
@@ -1074,6 +1189,16 @@ onUnmounted(() => {
   border-left: 3px solid var(--accent);
 }
 
+.section-count {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--bg-muted);
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-align: center;
+}
+
 .resource-item-list :deep(.n-list-item) {
   padding: 10px 8px;
   margin-bottom: 6px;
@@ -1092,6 +1217,13 @@ onUnmounted(() => {
   font-size: 12px;
   color: var(--text);
   margin-bottom: 2px;
+}
+
+.res-label {
+  display: inline-block;
+  width: 34px;
+  margin-right: 6px;
+  color: var(--text-secondary);
 }
 
 .coordinate-text {

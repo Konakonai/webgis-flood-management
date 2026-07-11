@@ -1,6 +1,6 @@
 import type { FeatureCollection } from 'geojson'
 
-// 徐州市主要城区模拟行政边界
+// 离线交付所需的徐州市业务底图数据；这些要素用于地图基础展示，不替代后端业务数据。
 export const xuzhouBoundary: FeatureCollection = {
   type: 'FeatureCollection',
   features: [
@@ -27,95 +27,6 @@ export const xuzhouBoundary: FeatureCollection = {
             [117.06, 34.28],
             [117.08, 34.20]
           ]
-        ]
-      }
-    }
-  ]
-}
-
-// 模拟市政排水/雨水管网
-export const pipeNetwork: FeatureCollection = {
-  type: 'FeatureCollection',
-  features: [
-    {
-      type: 'Feature',
-      properties: {
-        id: 'P001',
-        street: '淮海路干渠',
-        diameter: 'DN800',
-        material: 'PE (聚乙烯)',
-        flowRate: '1.2 m³/s',
-        status: '正常',
-        depth: '3.2m'
-      },
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [117.12, 34.26],
-          [117.15, 34.26],
-          [117.18, 34.26],
-          [117.22, 34.26]
-        ]
-      }
-    },
-    {
-      type: 'Feature',
-      properties: {
-        id: 'P002',
-        street: '解放路主管',
-        diameter: 'DN1200',
-        material: '钢筋混凝土',
-        flowRate: '3.1 m³/s',
-        status: '超负荷',
-        depth: '4.5m'
-      },
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [117.18, 34.21],
-          [117.18, 34.24],
-          [117.18, 34.26],
-          [117.18, 34.31]
-        ]
-      }
-    },
-    {
-      type: 'Feature',
-      properties: {
-        id: 'P003',
-        street: '云龙湖东路排水支管',
-        diameter: 'DN600',
-        material: 'PVC',
-        flowRate: '0.4 m³/s',
-        status: '正常',
-        depth: '2.1m'
-      },
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [117.13, 34.21],
-          [117.15, 34.23],
-          [117.165, 34.26]
-        ]
-      }
-    },
-    {
-      type: 'Feature',
-      properties: {
-        id: 'P004',
-        street: '昆仑大道雨水管廊',
-        diameter: 'DN1000',
-        material: '球墨铸铁',
-        flowRate: '1.8 m³/s',
-        status: '预警',
-        depth: '3.8m'
-      },
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [117.20, 34.26],
-          [117.23, 34.28],
-          [117.26, 34.29]
         ]
       }
     }
