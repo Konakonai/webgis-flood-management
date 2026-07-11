@@ -36,3 +36,9 @@ bin/
 !.env.example
 .env.local
 .env.*.local
+
+# Local document rendering / QA artifacts
+.codex-doc-qa/
+
+# Course-provided reference templates and report-generation scratch files
+成果提交文档示例及要求/
