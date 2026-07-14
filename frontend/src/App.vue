@@ -14,6 +14,7 @@ import AuthGate from './components/AuthGate.vue'
 import MapContainer from './components/MapContainer.vue'
 import SpatialQueryPanel from './components/SpatialQueryPanel.vue'
 import EmergencyDispatchPanel from './components/EmergencyDispatchPanel.vue'
+import AdminCenter from './components/AdminCenter.vue'
 import { useTheme } from './composables/useTheme'
 import { useAuthStore } from './store/auth'
 
@@ -21,6 +22,7 @@ const { isDark, naiveTheme } = useTheme()
 const auth = useAuthStore()
 const isNarrow = ref(false)
 const activePanel = ref<'spatial' | 'dispatch'>('spatial')
+const activeWorkspace = ref<'map' | 'admin'>('map')
 let narrowQuery: MediaQueryList | null = null
 
 const syncNarrowLayout = () => {
@@ -29,6 +31,10 @@ const syncNarrowLayout = () => {
 
 const showGuidePanel = (panel: 'spatial' | 'dispatch') => {
   if (isNarrow.value && auth.canManageWorkOrders) activePanel.value = panel
+}
+
+const changeWorkspace = (workspace: 'map' | 'admin') => {
+  activeWorkspace.value = auth.isAdmin ? workspace : 'map'
 }
 
 onMounted(() => {
@@ -51,10 +57,15 @@ onBeforeUnmount(() => narrowQuery?.removeEventListener('change', syncNarrowLayou
           <AuthGate />
           
           <!-- 系统顶栏 -->
-          <HelperUI v-if="auth.isAuthenticated" @guide-panel="showGuidePanel" />
+          <HelperUI
+            v-if="auth.isAuthenticated"
+            :active-workspace="activeWorkspace"
+            @guide-panel="showGuidePanel"
+            @workspace-change="changeWorkspace"
+          />
 
           <!-- 地图区域 + 悬浮控制面板 -->
-          <main v-if="auth.isAuthenticated" class="main-content">
+          <main v-if="auth.isAuthenticated && activeWorkspace === 'map'" class="main-content">
             <!-- 底层 WebGIS 地图画布 -->
             <div id="map-container" class="map-viewport">
               <MapContainer />
@@ -86,6 +97,11 @@ onBeforeUnmount(() => narrowQuery?.removeEventListener('change', syncNarrowLayou
             </div>
           </main>
 
+          <AdminCenter
+            v-if="auth.isAuthenticated && auth.isAdmin && activeWorkspace === 'admin'"
+            class="admin-workspace"
+          />
+
 
         </div>
         </n-dialog-provider>
@@ -112,6 +128,11 @@ onBeforeUnmount(() => narrowQuery?.removeEventListener('change', syncNarrowLayou
   width: 100%;
   position: relative;
   overflow: hidden;
+}
+
+.admin-workspace {
+  flex: 1;
+  min-height: 0;
 }
 
 .map-viewport {

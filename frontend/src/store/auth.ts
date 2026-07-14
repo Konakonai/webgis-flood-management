@@ -36,6 +36,7 @@ export const useAuthStore = defineStore('auth', () => {
   const ready = ref(false)
   const loading = ref(false)
   const isAuthenticated = computed(() => Boolean(user.value && localStorage.getItem(AUTH_TOKEN_KEY)))
+  const isAdmin = computed(() => user.value?.roles.includes('ROLE_ADMIN') ?? false)
   const canManageWorkOrders = computed(() => user.value?.roles.some((role) =>
     role === 'ROLE_ADMIN' || role === 'ROLE_OPERATOR') ?? false)
 
@@ -92,5 +93,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, ready, loading, isAuthenticated, canManageWorkOrders, login, logout, initialize }
+  return { user, ready, loading, isAuthenticated, isAdmin, canManageWorkOrders, login, logout, initialize }
 })

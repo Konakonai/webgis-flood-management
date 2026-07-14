@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import { CircleHelp, Maximize2, Minimize2, Moon, Sun, Waves } from 'lucide-vue-next'
+import { CircleHelp, LayoutDashboard, Map, Maximize2, Minimize2, Moon, Sun, Waves } from 'lucide-vue-next'
 import { useTheme } from '../composables/useTheme'
 import { useAuthStore } from '../store/auth'
 
@@ -9,7 +9,10 @@ const { isDark, toggleTheme } = useTheme()
 const auth = useAuthStore()
 const emit = defineEmits<{
   guidePanel: [panel: 'spatial' | 'dispatch']
+  workspaceChange: [workspace: 'map' | 'admin']
 }>()
+
+defineProps<{ activeWorkspace: 'map' | 'admin' }>()
 
 // 全屏状态控制
 const isFullscreen = ref(false)
@@ -267,9 +270,21 @@ onUnmounted(() => {
       </div>
 
       <!-- 新手引导 -->
-      <button class="action-btn" @click="startGuide" title="系统操作导览">
+      <button v-if="activeWorkspace === 'map'" class="action-btn" @click="startGuide" title="系统操作导览">
         <CircleHelp class="btn-icon" aria-hidden="true" />
         <span class="btn-text">新手引导</span>
+      </button>
+
+      <button
+        v-if="auth.isAdmin"
+        class="action-btn workspace-entry"
+        :class="{ active: activeWorkspace === 'admin' }"
+        type="button"
+        :title="activeWorkspace === 'admin' ? '返回地图工作台' : '进入后台管理中心'"
+        @click="emit('workspaceChange', activeWorkspace === 'admin' ? 'map' : 'admin')"
+      >
+        <component :is="activeWorkspace === 'admin' ? Map : LayoutDashboard" class="btn-icon" aria-hidden="true" />
+        <span class="btn-text">{{ activeWorkspace === 'admin' ? '地图工作台' : '后台管理' }}</span>
       </button>
 
       <!-- 当前会话：作为头栏正常布局的一部分，避免覆盖相邻功能按钮 -->
@@ -516,6 +531,12 @@ onUnmounted(() => {
 
 .action-btn:active {
   transform: translateY(0);
+}
+
+.workspace-entry.active {
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+  background: rgba(18, 144, 100, 0.1);
 }
 
 .session-control {
