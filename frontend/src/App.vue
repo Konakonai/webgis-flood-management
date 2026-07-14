@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   NConfigProvider,
   NNotificationProvider,
@@ -36,6 +36,10 @@ const showGuidePanel = (panel: 'spatial' | 'dispatch') => {
 const changeWorkspace = (workspace: 'map' | 'admin') => {
   activeWorkspace.value = auth.isAdmin ? workspace : 'map'
 }
+
+watch(() => auth.isAdmin, (isAdmin) => {
+  if (!isAdmin) activeWorkspace.value = 'map'
+})
 
 onMounted(() => {
   auth.initialize()
