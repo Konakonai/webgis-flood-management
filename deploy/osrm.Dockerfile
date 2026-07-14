@@ -9,7 +9,8 @@ RUN groupadd --system --gid 10002 osrm \
     && useradd --system --uid 10002 --gid osrm --home-dir /data --shell /usr/sbin/nologin osrm
 
 COPY deploy/osrm/entrypoint.sh /usr/local/bin/floodgis-osrm-entrypoint
-RUN chmod 0755 /usr/local/bin/floodgis-osrm-entrypoint
+RUN sed -i 's/\r$//' /usr/local/bin/floodgis-osrm-entrypoint \
+    && chmod 0755 /usr/local/bin/floodgis-osrm-entrypoint
 
 EXPOSE 5000
 ENTRYPOINT ["/usr/local/bin/floodgis-osrm-entrypoint"]
