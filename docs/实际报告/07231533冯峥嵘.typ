@@ -1,9 +1,9 @@
-#import "../typst-template/scripst/main.typ": scripst
+#import "./typst-template/scripst/main.typ": scripst
 
 #let serif = "SimSun"
 #let sans = "Noto Sans CJK SC"
-#let image-dir = "../images"
-#let typst-image-dir = "../typst-assets"
+#let image-dir = "./images"
+#let typst-image-dir = "./typst-assets"
 
 #show: scripst.with(
   template: "article",
