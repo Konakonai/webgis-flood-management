@@ -40,7 +40,7 @@
   set text(font: ("Times New Roman", serif), size: 9pt)
   it
 }
-#show raw.where(block: true): set text(font: "JetBrains Maple Mono", size: 7pt)
+#show raw.where(block: true): set text(font: "JetBrains Maple Mono", size: 8pt)
 #show raw.where(block: false): set text(font: "Times New Roman")
 
 #let cover-field(label, value) = grid(
@@ -222,6 +222,229 @@ const planRoute = async (start, end) => {
   }
 }
 ```
+
+== 关键代码 4：右键结束绘制的事件所有权
+
+```ts
+const handleMapContextMenu = (e: maplibregl.MapMouseEvent) => {
+  if (drawMode.value !== "polygon") return
+  e.preventDefault()
+
+  // MapLibre 会同步调用同一 contextmenu 事件的全部监听器。
+  // 若立即恢复 idle，灾情登记监听器会误处理同一次右键。
+  finishPolygonDrawing()
+  mapStore.setInteractionMode("draw-query")
+  queueMicrotask(() => {
+    if (mapStore.interactionMode === "draw-query") {
+      mapStore.setInteractionMode("idle")
+    }
+  })
+}
+```
+
+#pagebreak()
+
+== 关键代码 5：Turf 路线粒子动画
+
+```ts
+const startRouteAnimation = (coordinates: [number, number][]) => {
+  if (animationFrameId) cancelAnimationFrame(animationFrameId)
+  const line = turf.lineString(coordinates)
+  const routeLength = turf.length(line, { units: "kilometers" })
+  let progress = 0
+
+  const animate = () => {
+    const mapInst = map.value
+    if (!mapInst) return
+    progress = (progress + routeLength / 100) % routeLength
+    const points: any[] = []
+
+    for (let i = 0; i < 5; i++) {
+      const dist = progress - i * (routeLength / 18)
+      if (dist < 0) continue
+      const point = turf.along(line, dist, { units: "kilometers" })
+      points.push({
+        type: "Feature",
+        properties: { opacity: 1 - i * 0.18, size: 6.5 - i },
+        geometry: point.geometry,
+      })
+    }
+
+    const source = mapInst.getSource("route-particles-source")
+    if (source) source.setData({
+      type: "FeatureCollection",
+      features: points,
+    })
+    animationFrameId = requestAnimationFrame(animate)
+  }
+
+  animate()
+}
+```
+
+== 关键代码 6：路线图层与动画清理
+
+```ts
+const removeRouteFromMap = () => {
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId)
+    animationFrameId = null
+  }
+  const mapInst = map.value
+  if (!mapInst) return
+
+  const layers = ["route-particles-layer", "route-line-core", "route-line-bg"]
+  layers.forEach(id => {
+    if (mapInst.getLayer(id)) mapInst.removeLayer(id)
+  })
+  const sources = ["route-particles-source", "route-path-source"]
+  sources.forEach(id => {
+    if (mapInst.getSource(id)) mapInst.removeSource(id)
+  })
+}
+```
+
+#pagebreak()
+
+== 关键代码 7：MapLibre 路线双层渲染
+
+```ts
+const drawRouteOnMap = (coordinates: [number, number][]) => {
+  const mapInst = map.value
+  if (!mapInst) return
+  const sourceId = "route-path-source"
+  const route = {
+    type: "Feature",
+    properties: {},
+    geometry: { type: "LineString", coordinates },
+  }
+
+  const source = mapInst.getSource(sourceId)
+  if (source) {
+    source.setData(route)
+    return
+  }
+
+  mapInst.addSource(sourceId, { type: "geojson", data: route })
+  mapInst.addLayer({
+    id: "route-line-bg",
+    type: "line",
+    source: sourceId,
+    paint: {
+      "line-color": "#10b981",
+      "line-width": 7,
+      "line-opacity": 0.35,
+    },
+    layout: { "line-join": "round", "line-cap": "round" },
+  })
+  mapInst.addLayer({
+    id: "route-line-core",
+    type: "line",
+    source: sourceId,
+    paint: {
+      "line-color": "#34d399",
+      "line-width": 3.5,
+      "line-opacity": 0.95,
+    },
+    layout: { "line-join": "round", "line-cap": "round" },
+  })
+}
+```
+
+== 关键代码 8：移动端图片等比压缩
+
+```ts
+const compressImage = async (file: File): Promise<File> => {
+  if (!["image/jpeg", "image/png"].includes(file.type)) {
+    throw new Error("仅支持 PNG 或 JPEG 图片")
+  }
+  const bitmap = await createImageBitmap(file)
+  const scale = Math.min(1, 1920 / Math.max(bitmap.width, bitmap.height))
+  const canvas = document.createElement("canvas")
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale))
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+  const context = canvas.getContext("2d")
+  if (!context) throw new Error("浏览器无法处理该图片")
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  bitmap.close()
+
+  const type = file.type === "image/png" ? "image/png" : "image/jpeg"
+  const blob = await new Promise<Blob | null>(resolve =>
+    canvas.toBlob(resolve, type, 0.82)
+  )
+  if (!blob || blob.size > 5 * 1024 * 1024) {
+    throw new Error("压缩后图片仍超过 5 MB")
+  }
+  return new File([blob], file.name, { type })
+}
+```
+
+#pagebreak()
+
+== 关键代码 9：公众上报与附件上传
+
+```ts
+const submitReport = async () => {
+  if (!Number.isFinite(reportLng.value) || !Number.isFinite(reportLat.value)) {
+    message.error("请先获取或拾取上报位置")
+    return
+  }
+
+  isSubmitting.value = true
+  try {
+    const created = await apiRequest<{ trackingCode: string }>(
+      "/api/reports",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          lng: reportLng.value,
+          lat: reportLat.value,
+          depth: reportDepth.value,
+          description: reportDescription.value.trim(),
+        }),
+      },
+    )
+    if (selectedImage.value) {
+      const form = new FormData()
+      form.append("file", selectedImage.value)
+      await apiRequest(
+        `/api/reports/${created.trackingCode}/images`,
+        { method: "POST", body: form },
+      )
+    }
+    trackingQuery.value = created.trackingCode
+    message.success(`上报成功，追踪码：${created.trackingCode}`)
+  } finally {
+    isSubmitting.value = false
+  }
+}
+```
+
+== 关键代码 10：STOMP 工单实时刷新
+
+```ts
+const connectWorkOrderUpdates = () => {
+  if (stompClient?.active) return
+  const token = localStorage.getItem(AUTH_TOKEN_KEY)
+  if (!token) return
+
+  stompClient = new Client({
+    webSocketFactory: () => new SockJS("/ws"),
+    connectHeaders: { Authorization: `Bearer ${token}` },
+    reconnectDelay: 5000,
+    heartbeatIncoming: 10000,
+    heartbeatOutgoing: 10000,
+    onConnect: () => {
+      stompClient?.subscribe("/topic/work-orders", () => {
+        void Promise.all([fetchStations(), fetchWorkOrders()])
+      })
+    },
+  })
+  stompClient.activate()
+}
+```
+
+#pagebreak()
 
 = 4 总结
 
